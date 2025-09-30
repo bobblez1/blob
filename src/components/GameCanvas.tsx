@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '../context/GameContext';
-import { Play, Pause, RotateCcw, Heart, Home, Zap } from 'lucide-react';
+import { Play, Pause, RotateCcw, Heart, Home, Zap, Shield, Star } from 'lucide-react';
 
 interface Blob {
   id: string;
@@ -19,20 +19,25 @@ interface GameCanvasProps {
   onGameEnd: () => void;
 }
 
-const CANVAS_WIDTH = 2000;
-const CANVAS_HEIGHT = 2000;
-const VIEWPORT_WIDTH = 400;
-const VIEWPORT_HEIGHT = 600;
+// Portrait-oriented game world
+const CANVAS_WIDTH = 1000;
+const CANVAS_HEIGHT = 1500;
+const VIEWPORT_WIDTH = 360;
+const VIEWPORT_HEIGHT = 640;
 
 function GameCanvas({ onGameEnd }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
   const mouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const keysRef = useRef<Set<string>>(new Set());
+  const lastDecayTime = useRef<number>(Date.now());
+  const gameStartTime = useRef<number>(Date.now());
   
   const { 
     stats, 
     upgrades, 
+    challenges,
+    activePowerUps,
     currentPoints, 
     gameActive, 
     playerSize, 
@@ -40,7 +45,9 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     startGame, 
     endGame, 
     useLife, 
-    revivePlayer 
+    revivePlayer,
+    updateChallengeProgress,
+    activatePowerUp
   } = useGame();
   
   const [player, setPlayer] = useState<Blob>({
@@ -59,16 +66,24 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   const [gameOver, setGameOver] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [shieldActive, setShieldActive] = useState(false);
 
   // Initialize game
   useEffect(() => {
     generateBots();
     generateFoods();
+    gameStartTime.current = Date.now();
     
     // Hide controls after 3 seconds
     const timer = setTimeout(() => setShowControls(false), 3000);
     return () => clearTimeout(timer);
   }, []);
+
+  // Check for active shield power-up
+  useEffect(() => {
+    const shield = activePowerUps.find(p => p.id === 'shield');
+    setShieldActive(!!shield);
+  }, [activePowerUps]);
 
   // Mouse and keyboard event handlers
   useEffect(() => {
@@ -127,23 +142,23 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [gameActive, gameOver, isPaused, player, bots, foods]);
+  }, [gameActive, gameOver, isPaused, player, bots, foods, activePowerUps]);
 
   const generateBots = () => {
     const newBots: Blob[] = [];
     const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
     const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Theta', 'Zeta', 'Kappa', 'Lambda'];
     
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 15; i++) {
       newBots.push({
         id: `bot-${i}`,
         x: Math.random() * CANVAS_WIDTH,
         y: Math.random() * CANVAS_HEIGHT,
-        size: 10 + Math.random() * 50,
+        size: 10 + Math.random() * 40,
         color: colors[Math.floor(Math.random() * colors.length)],
         isBot: true,
-        vx: (Math.random() - 0.5) * 3,
-        vy: (Math.random() - 0.5) * 3,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
         name: names[Math.floor(Math.random() * names.length)],
       });
     }
@@ -154,12 +169,12 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     const newFoods: Blob[] = [];
     const colors = ['#FBBF24', '#34D399', '#F87171', '#A78BFA', '#60A5FA', '#F472B6', '#10B981'];
     
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 200; i++) {
       newFoods.push({
         id: `food-${i}`,
         x: Math.random() * CANVAS_WIDTH,
         y: Math.random() * CANVAS_HEIGHT,
-        size: 2 + Math.random() * 6,
+        size: 2 + Math.random() * 4,
         color: colors[Math.floor(Math.random() * colors.length)],
       });
     }
@@ -170,7 +185,16 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     // Update player size
     setPlayer(prev => ({ ...prev, size: playerSize }));
     
-    // Handle player movement (desktop: mouse, mobile: touch)
+    // Blob decay mechanic - slowly shrink if inactive
+    const now = Date.now();
+    if (now - lastDecayTime.current > 2000) { // Every 2 seconds
+      if (playerSize > 20) { // Don't shrink below minimum size
+        setPlayer(prev => ({ ...prev, size: Math.max(20, prev.size - 0.5) }));
+      }
+      lastDecayTime.current = now;
+    }
+    
+    // Handle player movement with size-based speed
     const canvas = canvasRef.current;
     if (canvas) {
       const centerX = VIEWPORT_WIDTH / 2;
@@ -179,11 +203,15 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       let targetX = mouseRef.current.x;
       let targetY = mouseRef.current.y;
       
-      // Keyboard movement for desktop
-      const speed = upgrades.find(u => u.id === 'speed_boost' && u.owned) ? 4 : 2.5;
+      // Calculate speed based on size (bigger = slower)
+      const baseSpeed = upgrades.find(u => u.id === 'speed_boost' && u.owned) ? 3.5 : 2.5;
+      const sizeSpeedFactor = Math.max(0.3, 1 - (playerSize - 20) / 200); // Slower as size increases
+      const speed = baseSpeed * sizeSpeedFactor;
+      
       let moveX = 0;
       let moveY = 0;
       
+      // Keyboard movement for desktop
       if (keysRef.current.has('w') || keysRef.current.has('arrowup')) moveY -= speed;
       if (keysRef.current.has('s') || keysRef.current.has('arrowdown')) moveY += speed;
       if (keysRef.current.has('a') || keysRef.current.has('arrowleft')) moveX -= speed;
@@ -210,18 +238,23 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           x: Math.max(prev.size, Math.min(CANVAS_WIDTH - prev.size, prev.x + moveX)),
           y: Math.max(prev.size, Math.min(CANVAS_HEIGHT - prev.size, prev.y + moveY)),
         }));
+        
+        // Reset decay timer when moving
+        lastDecayTime.current = now;
       }
     }
     
     // Update camera to follow player
     setCamera({
-      x: player.x - VIEWPORT_WIDTH / 2,
-      y: player.y - VIEWPORT_HEIGHT / 2,
+      x: Math.max(0, Math.min(CANVAS_WIDTH - VIEWPORT_WIDTH, player.x - VIEWPORT_WIDTH / 2)),
+      y: Math.max(0, Math.min(CANVAS_HEIGHT - VIEWPORT_HEIGHT, player.y - VIEWPORT_HEIGHT / 2)),
     });
 
     // Update bots with improved AI
     setBots(prevBots => prevBots.map(bot => {
-      // Simple AI: move towards nearest food or away from larger blobs
+      // Bot speed based on size
+      const botBaseSpeed = Math.max(0.5, 1.5 - (bot.size - 10) / 100);
+      
       let targetX = bot.x;
       let targetY = bot.y;
       
@@ -233,7 +266,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         const distance = Math.sqrt(
           Math.pow(bot.x - food.x, 2) + Math.pow(bot.y - food.y, 2)
         );
-        if (distance < nearestFoodDistance && distance < 100) {
+        if (distance < nearestFoodDistance && distance < 80) {
           nearestFood = food;
           nearestFoodDistance = distance;
         }
@@ -246,13 +279,13 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (distance > 0) {
-          targetX = bot.x + (dx / distance) * 1.5;
-          targetY = bot.y + (dy / distance) * 1.5;
+          targetX = bot.x + (dx / distance) * botBaseSpeed;
+          targetY = bot.y + (dy / distance) * botBaseSpeed;
         }
       } else {
         // Random movement
-        targetX = bot.x + (bot.vx || 0);
-        targetY = bot.y + (bot.vy || 0);
+        targetX = bot.x + (bot.vx || 0) * botBaseSpeed;
+        targetY = bot.y + (bot.vy || 0) * botBaseSpeed;
       }
       
       // Avoid larger blobs (including player)
@@ -260,23 +293,23 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         Math.pow(bot.x - player.x, 2) + Math.pow(bot.y - player.y, 2)
       );
       
-      if (playerDistance < 80 && player.size > bot.size) {
+      if (playerDistance < 100 && player.size > bot.size && !shieldActive) {
         const dx = bot.x - player.x;
         const dy = bot.y - player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (distance > 0) {
-          targetX = bot.x + (dx / distance) * 3;
-          targetY = bot.y + (dy / distance) * 3;
+          targetX = bot.x + (dx / distance) * botBaseSpeed * 2;
+          targetY = bot.y + (dy / distance) * botBaseSpeed * 2;
         }
       }
       
       // Bounce off walls
-      if (targetX < 0 || targetX > CANVAS_WIDTH) {
+      if (targetX < bot.size || targetX > CANVAS_WIDTH - bot.size) {
         bot.vx = -(bot.vx || 0);
         targetX = Math.max(bot.size, Math.min(CANVAS_WIDTH - bot.size, targetX));
       }
-      if (targetY < 0 || targetY > CANVAS_HEIGHT) {
+      if (targetY < bot.size || targetY > CANVAS_HEIGHT - bot.size) {
         bot.vy = -(bot.vy || 0);
         targetY = Math.max(bot.size, Math.min(CANVAS_HEIGHT - bot.size, targetY));
       }
@@ -284,7 +317,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       return { ...bot, x: targetX, y: targetY };
     }));
 
-    // Check collisions with food
+    // Check collisions with food (growth only, no points)
     setFoods(prevFoods => {
       const remainingFoods = prevFoods.filter(food => {
         const distance = Math.sqrt(
@@ -292,21 +325,22 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         );
         
         if (distance < player.size / 2 + food.size / 2) {
-          updateStats(1);
+          // Only growth, no points for food
+          setPlayer(prev => ({ ...prev, size: prev.size + 0.3 }));
           return false;
         }
         return true;
       });
       
       // Regenerate food if needed
-      if (remainingFoods.length < 100) {
+      if (remainingFoods.length < 150) {
         const colors = ['#FBBF24', '#34D399', '#F87171', '#A78BFA', '#60A5FA', '#F472B6', '#10B981'];
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 30; i++) {
           remainingFoods.push({
             id: `food-${Date.now()}-${i}`,
             x: Math.random() * CANVAS_WIDTH,
             y: Math.random() * CANVAS_HEIGHT,
-            size: 2 + Math.random() * 6,
+            size: 2 + Math.random() * 4,
             color: colors[Math.floor(Math.random() * colors.length)],
           });
         }
@@ -317,6 +351,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
 
     // Check collisions with bots
     const hasInstantKill = upgrades.find(u => u.id === 'instant_kill' && u.owned);
+    const doublePoints = activePowerUps.find(p => p.id === 'double_points');
     
     bots.forEach(bot => {
       const distance = Math.sqrt(
@@ -325,8 +360,15 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       
       if (distance < player.size / 2 + bot.size / 2) {
         if (player.size > bot.size || hasInstantKill) {
-          // Player eats bot
-          updateStats(Math.floor(bot.size / 3));
+          // Player eats bot - gain points and growth
+          const basePoints = Math.floor(bot.size / 2);
+          const multiplier = upgrades.find(u => u.id === 'point_multiplier' && u.owned) ? 2 : 1;
+          const doubleMultiplier = doublePoints ? 2 : 1;
+          const totalPoints = basePoints * multiplier * doubleMultiplier;
+          
+          updateStats(totalPoints);
+          updateChallengeProgress('eat_blobs', 1);
+          
           setBots(prev => prev.filter(b => b.id !== bot.id));
           
           // Add new bot to maintain population
@@ -337,19 +379,25 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
             id: `bot-${Date.now()}`,
             x: Math.random() * CANVAS_WIDTH,
             y: Math.random() * CANVAS_HEIGHT,
-            size: 10 + Math.random() * 50,
+            size: 10 + Math.random() * 40,
             color: colors[Math.floor(Math.random() * colors.length)],
             isBot: true,
-            vx: (Math.random() - 0.5) * 3,
-            vy: (Math.random() - 0.5) * 3,
+            vx: (Math.random() - 0.5) * 2,
+            vy: (Math.random() - 0.5) * 2,
             name: names[Math.floor(Math.random() * names.length)],
           }]);
-        } else {
-          // Bot eats player - game over
+        } else if (!shieldActive) {
+          // Bot eats player - game over (only if no shield)
           handleGameOver();
         }
       }
     });
+
+    // Update survival time challenge
+    const survivalTime = (now - gameStartTime.current) / 1000;
+    if (survivalTime >= 60) { // 1 minute survival
+      updateChallengeProgress('survive_time', Math.floor(survivalTime / 60));
+    }
   };
 
   const handleGameOver = () => {
@@ -357,29 +405,45 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     
     if (hasAutoRevive) {
       revivePlayer();
-      // Remove auto-revive after use (single use per game)
-      // This would need to be implemented in the context
+      setPlayer(prev => ({ ...prev, size: 20 }));
     } else {
       setGameOver(true);
       endGame(currentPoints);
+      
+      // Use a life when game ends
+      useLife();
     }
   };
 
   const handleRestart = () => {
-    if (useLife()) {
+    if (stats.livesRemaining > 0) {
       setGameOver(false);
       setPlayer({
         id: 'player',
         x: CANVAS_WIDTH / 2,
         y: CANVAS_HEIGHT / 2,
         size: 20,
-        color: '#3B82F6',
+        color: getPlayerColor(),
         isPlayer: true,
         name: 'You',
       });
       generateBots();
+      gameStartTime.current = Date.now();
       startGame();
     }
+  };
+
+  const getPlayerColor = () => {
+    const cosmetic = upgrades.find(u => u.category === 'cosmetic' && u.owned);
+    return cosmetic?.color || '#3B82F6';
+  };
+
+  const getEvolutionStage = (size: number) => {
+    if (size >= 100) return 'legendary';
+    if (size >= 70) return 'epic';
+    if (size >= 50) return 'rare';
+    if (size >= 30) return 'common';
+    return 'basic';
   };
 
   const draw = () => {
@@ -395,7 +459,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     // Draw grid
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
     ctx.lineWidth = 1;
-    const gridSize = 50;
+    const gridSize = 40;
     
     for (let x = -camera.x % gridSize; x < VIEWPORT_WIDTH; x += gridSize) {
       ctx.beginPath();
@@ -416,16 +480,16 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       const screenX = food.x - camera.x;
       const screenY = food.y - camera.y;
       
-      if (screenX > -50 && screenX < VIEWPORT_WIDTH + 50 && 
-          screenY > -50 && screenY < VIEWPORT_HEIGHT + 50) {
+      if (screenX > -20 && screenX < VIEWPORT_WIDTH + 20 && 
+          screenY > -20 && screenY < VIEWPORT_HEIGHT + 20) {
         ctx.fillStyle = food.color;
         ctx.beginPath();
         ctx.arc(screenX, screenY, food.size, 0, Math.PI * 2);
         ctx.fill();
         
-        // Add glow effect
+        // Add subtle glow
         ctx.shadowColor = food.color;
-        ctx.shadowBlur = 5;
+        ctx.shadowBlur = 3;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
@@ -445,60 +509,114 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         ctx.fill();
         
         // Draw bot outline
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.lineWidth = 1;
         ctx.stroke();
         
         // Draw bot name
         if (bot.size > 15) {
           ctx.fillStyle = 'white';
-          ctx.font = '12px Arial';
+          ctx.font = '10px Arial';
           ctx.textAlign = 'center';
-          ctx.fillText(bot.name || '', screenX, screenY + 4);
+          ctx.fillText(bot.name || '', screenX, screenY + 3);
         }
       }
     });
     
-    // Draw player
+    // Draw player with evolution effects
     const playerScreenX = player.x - camera.x;
     const playerScreenY = player.y - camera.y;
+    const evolutionStage = getEvolutionStage(player.size);
     
-    ctx.fillStyle = player.color;
+    // Player glow based on evolution
+    if (evolutionStage !== 'basic') {
+      ctx.shadowColor = player.color;
+      ctx.shadowBlur = evolutionStage === 'legendary' ? 20 : evolutionStage === 'epic' ? 15 : 10;
+    }
+    
+    ctx.fillStyle = getPlayerColor();
     ctx.beginPath();
     ctx.arc(playerScreenX, playerScreenY, player.size / 2, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
+    
+    // Draw shield effect
+    if (shieldActive) {
+      ctx.strokeStyle = '#60A5FA';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.arc(playerScreenX, playerScreenY, player.size / 2 + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     
     // Draw player outline
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = evolutionStage === 'legendary' ? '#FFD700' : 
+                     evolutionStage === 'epic' ? '#9333EA' :
+                     evolutionStage === 'rare' ? '#3B82F6' : '#FFFFFF';
+    ctx.lineWidth = evolutionStage === 'legendary' ? 4 : 2;
     ctx.stroke();
     
-    // Draw player name
+    // Draw player name and evolution indicator
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 14px Arial';
+    ctx.font = 'bold 12px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('You', playerScreenX, playerScreenY + 5);
+    ctx.fillText('You', playerScreenX, playerScreenY + 4);
+    
+    if (evolutionStage !== 'basic') {
+      ctx.font = '8px Arial';
+      ctx.fillStyle = evolutionStage === 'legendary' ? '#FFD700' : 
+                     evolutionStage === 'epic' ? '#9333EA' :
+                     evolutionStage === 'rare' ? '#3B82F6' : '#10B981';
+      ctx.fillText(evolutionStage.toUpperCase(), playerScreenX, playerScreenY - player.size / 2 - 8);
+    }
     
     // Draw leaderboard
     drawLeaderboard(ctx);
+    
+    // Draw active power-ups indicator
+    if (activePowerUps.length > 0) {
+      drawPowerUpsIndicator(ctx);
+    }
   };
 
   const drawLeaderboard = (ctx: CanvasRenderingContext2D) => {
     const allBlobs = [player, ...bots].sort((a, b) => b.size - a.size).slice(0, 5);
     
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 150, 120);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(10, 10, 140, 110);
     
     ctx.fillStyle = 'white';
-    ctx.font = 'bold 14px Arial';
+    ctx.font = 'bold 12px Arial';
     ctx.textAlign = 'left';
-    ctx.fillText('Leaderboard', 20, 30);
+    ctx.fillText('Leaderboard', 15, 28);
     
     allBlobs.forEach((blob, index) => {
-      const y = 50 + index * 15;
-      ctx.font = '12px Arial';
+      const y = 45 + index * 13;
+      ctx.font = '10px Arial';
       ctx.fillStyle = blob.isPlayer ? '#3B82F6' : '#888';
-      ctx.fillText(`${index + 1}. ${blob.name || 'Bot'} (${Math.round(blob.size)})`, 20, y);
+      const name = blob.name || 'Bot';
+      const size = Math.round(blob.size);
+      ctx.fillText(`${index + 1}. ${name} (${size})`, 15, y);
+    });
+  };
+
+  const drawPowerUpsIndicator = (ctx: CanvasRenderingContext2D) => {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    ctx.fillRect(VIEWPORT_WIDTH - 120, 10, 110, 30 + activePowerUps.length * 15);
+    
+    ctx.fillStyle = '#60A5FA';
+    ctx.font = 'bold 10px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('Active Power-ups', VIEWPORT_WIDTH - 115, 25);
+    
+    activePowerUps.forEach((powerUp, index) => {
+      const y = 40 + index * 15;
+      const timeLeft = Math.ceil((powerUp.expiresAt - Date.now()) / 1000);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '9px Arial';
+      ctx.fillText(`${powerUp.name}: ${timeLeft}s`, VIEWPORT_WIDTH - 115, y);
     });
   };
 
@@ -515,29 +633,29 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col">
+    <div className="relative w-full h-full flex flex-col max-w-sm mx-auto">
       {/* Game HUD */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-4 bg-gradient-to-b from-black/70 to-transparent">
-        <div className="flex justify-between items-center text-white">
-          <div className="flex items-center gap-4">
-            <div className="text-lg font-bold">Score: {currentPoints}</div>
+      <div className="absolute top-0 left-0 right-0 z-10 p-3 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex justify-between items-center text-white text-sm">
+          <div className="flex items-center gap-3">
+            <div className="font-bold">Score: {currentPoints}</div>
             <div className="flex items-center gap-1">
-              <Heart size={16} className="text-red-400" />
-              <span className="text-sm">{stats.livesRemaining}</span>
+              <Heart size={14} className="text-red-400" />
+              <span>{stats.livesRemaining}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <button
               onClick={onGameEnd}
-              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
+              className="p-1.5 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
             >
-              <Home size={16} />
+              <Home size={14} />
             </button>
             <button
               onClick={() => setIsPaused(!isPaused)}
-              className="p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
+              className="p-1.5 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 transition-colors"
             >
-              {isPaused ? <Play size={16} /> : <Pause size={16} />}
+              {isPaused ? <Play size={14} /> : <Pause size={14} />}
             </button>
           </div>
         </div>
@@ -545,22 +663,9 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
 
       {/* Controls Help */}
       {showControls && (
-        <div className="absolute bottom-20 left-4 right-4 z-10 bg-black/70 p-3 rounded-lg text-white text-sm">
-          <div className="text-center">
-            <p className="mb-1">🖱️ Move mouse or use WASD keys to move</p>
-            <p>📱 Touch screen to move on mobile</p>
-          </div>
-        </div>
-      )}
-
-      {/* Active Upgrades Indicator */}
-      {upgrades.some(u => u.owned) && (
-        <div className="absolute top-16 right-4 z-10 flex gap-1">
-          {upgrades.filter(u => u.owned).map(upgrade => (
-            <div key={upgrade.id} className="bg-yellow-500/20 border border-yellow-500/30 p-1 rounded">
-              <Zap size={12} className="text-yellow-400" />
-            </div>
-          ))}
+        <div className="absolute bottom-16 left-2 right-2 z-10 bg-black/80 p-2 rounded-lg text-white text-xs text-center">
+          <p className="mb-1">🖱️ Move mouse or WASD to move</p>
+          <p>📱 Touch to move on mobile</p>
         </div>
       )}
 
@@ -572,19 +677,19 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         className="w-full h-full bg-gradient-to-br from-indigo-900 via-purple-900 to-blue-900 cursor-crosshair"
         onTouchStart={handleTouch}
         onTouchMove={handleTouch}
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: 'none', aspectRatio: `${VIEWPORT_WIDTH}/${VIEWPORT_HEIGHT}` }}
       />
 
       {/* Pause Screen */}
       {isPaused && gameActive && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-20">
           <div className="bg-gray-900/90 p-6 rounded-2xl text-white text-center">
-            <h2 className="text-2xl font-bold mb-4">Game Paused</h2>
+            <h2 className="text-xl font-bold mb-4">Game Paused</h2>
             <button
               onClick={() => setIsPaused(false)}
               className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
             >
-              <Play size={20} />
+              <Play size={18} />
               Resume
             </button>
           </div>
@@ -594,28 +699,30 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       {/* Game Over / Start Screen */}
       {(!gameActive || gameOver) && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-20">
-          <div className="bg-gray-900/90 p-6 rounded-2xl text-white text-center max-w-sm mx-4">
+          <div className="bg-gray-900/90 p-6 rounded-2xl text-white text-center max-w-xs mx-4">
             {gameOver ? (
               <>
-                <h2 className="text-2xl font-bold mb-2">Game Over!</h2>
+                <h2 className="text-xl font-bold mb-2">Game Over!</h2>
                 <p className="text-gray-300 mb-2">Final Score: {currentPoints}</p>
-                <p className="text-sm text-gray-400 mb-4">Size Reached: {Math.round(playerSize)}</p>
+                <p className="text-sm text-gray-400 mb-4">
+                  Evolution: {getEvolutionStage(playerSize).toUpperCase()}
+                </p>
                 
-                <div className="flex gap-3">
+                <div className="flex gap-2">
                   <button
                     onClick={onGameEnd}
-                    className="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 justify-center"
+                    className="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 justify-center text-sm"
                   >
-                    <Home size={20} />
+                    <Home size={16} />
                     Home
                   </button>
                   
                   {stats.livesRemaining > 0 && (
                     <button
                       onClick={handleRestart}
-                      className="flex-1 bg-blue-500 hover:bg-blue-600 px-4 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 justify-center"
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 justify-center text-sm"
                     >
-                      <RotateCcw size={20} />
+                      <RotateCcw size={16} />
                       Retry
                     </button>
                   )}
@@ -630,13 +737,13 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
               </>
             ) : (
               <>
-                <h2 className="text-2xl font-bold mb-4">Ready to Play?</h2>
-                <p className="text-gray-300 mb-6">Eat smaller blobs to grow bigger!</p>
+                <h2 className="text-xl font-bold mb-4">Ready to Play?</h2>
+                <p className="text-gray-300 mb-6 text-sm">Eat food to grow, eat smaller blobs for points!</p>
                 <button
                   onClick={startGame}
                   className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
                 >
-                  <Play size={20} />
+                  <Play size={18} />
                   Start Game
                 </button>
               </>

@@ -68,7 +68,7 @@ function HomeScreen({ onPlay, onStore, onDashboard, onSettings }: HomeScreenProp
   };
 
   return (
-    <div className="relative w-full h-full flex flex-col">
+    <div className="relative w-full h-full flex flex-col max-w-sm mx-auto">
       {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute top-10 left-10 w-20 h-20 bg-blue-500/20 rounded-full animate-pulse"></div>
@@ -98,6 +98,18 @@ function HomeScreen({ onPlay, onStore, onDashboard, onSettings }: HomeScreenProp
             <p className="text-sm text-gray-300">
               Start your journey to become the ultimate blob master!
             </p>
+          </div>
+        )}
+
+        {/* Login Streak Bonus */}
+        {stats.loginStreak > 1 && (
+          <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 p-3 rounded-xl mb-4">
+            <div className="flex items-center justify-center gap-2 text-orange-400">
+              <span className="text-lg">🔥</span>
+              <span className="font-bold text-sm">
+                {stats.loginStreak} Day Streak! +{Math.min(stats.loginStreak * 5, 50)} Bonus Points
+              </span>
+            </div>
           </div>
         )}
       </div>
