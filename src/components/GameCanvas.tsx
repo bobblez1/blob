@@ -73,11 +73,38 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     generateBots();
     generateFoods();
     gameStartTime.current = Date.now();
+    setTimeRemaining(180); // Reset timer for Time Attack
+    setPlayAreaRadius(Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) / 2); // Reset play area for Battle Royale
     
     // Hide controls after 3 seconds
     const timer = setTimeout(() => setShowControls(false), 3000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [gameMode]);
+
+  // Game mode specific timers
+  useEffect(() => {
+    if (!gameActive || gameOver || isPaused) return;
+    
+    const interval = setInterval(() => {
+      if (gameMode === 'timeAttack') {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            handleGameOver();
+            return 0;
+          }
+          return prev - 1;
+        });
+      } else if (gameMode === 'battleRoyale') {
+        setPlayAreaRadius(prev => {
+          const minRadius = 100;
+          const shrinkRate = 2;
+          return Math.max(minRadius, prev - shrinkRate);
+        });
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [gameActive, gameOver, isPaused, gameMode]);
 
   // Check for active shield power-up
   useEffect(() => {
@@ -147,19 +174,26 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   const generateBots = () => {
     const newBots: Blob[] = [];
     const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+    const teamColors = { red: '#EF4444', blue: '#3B82F6' };
     const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Theta', 'Zeta', 'Kappa', 'Lambda'];
     
-    for (let i = 0; i < 15; i++) {
+    const botCount = gameMode === 'battleRoyale' ? 20 : gameMode === 'team' ? 10 : 15;
+    
+    for (let i = 0; i < botCount; i++) {
+      const team = gameMode === 'team' ? (i % 2 === 0 ? 'red' : 'blue') : undefined;
+      const botColor = gameMode === 'team' ? teamColors[team as 'red' | 'blue'] : colors[Math.floor(Math.random() * colors.length)];
+      
       newBots.push({
         id: `bot-${i}`,
         x: Math.random() * CANVAS_WIDTH,
         y: Math.random() * CANVAS_HEIGHT,
         size: 10 + Math.random() * 40,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: botColor,
         isBot: true,
         vx: (Math.random() - 0.5) * 2,
         vy: (Math.random() - 0.5) * 2,
         name: names[Math.floor(Math.random() * names.length)],
+        team: team,
       });
     }
     setBots(newBots);
@@ -253,7 +287,15 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     // Update bots with improved AI
     setBots(prevBots => prevBots.map(bot => {
       // Bot speed based on size
-      const botBaseSpeed = Math.max(0.5, 1.5 - (bot.size - 10) / 100);
+      let botBaseSpeed = Math.max(0.5, 1.5 - (bot.size - 10) / 100);
+      
+      // Increase aggression based on game mode
+      if (gameMode === 'timeAttack') {
+        const aggressionMultiplier = 1 + (180 - timeRemaining) / 180; // More aggressive over time
+        botBaseSpeed *= aggressionMultiplier;
+      } else if (gameMode === 'battleRoyale') {
+        botBaseSpeed *= 1.5; // Always more aggressive in Battle Royale
+      }
       
       let targetX = bot.x;
       let targetY = bot.y;
@@ -266,14 +308,64 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         const distance = Math.sqrt(
           Math.pow(bot.x - food.x, 2) + Math.pow(bot.y - food.y, 2)
         );
-        if (distance < nearestFoodDistance && distance < 80) {
+        if (distance < nearestFoodDistance && distance < 150) {
           nearestFood = food;
           nearestFoodDistance = distance;
         }
       });
       
+      // Team mode: prioritize enemy team members
+      if (gameMode === 'team' && bot.team) {
+        let nearestEnemy = null;
+        let nearestEnemyDistance = Infinity;
+        
+        // Check other bots
+        prevBots.forEach(otherBot => {
+          if (otherBot.id !== bot.id && otherBot.team !== bot.team && otherBot.size < bot.size) {
+            const distance = Math.sqrt(
+              Math.pow(bot.x - otherBot.x, 2) + Math.pow(bot.y - otherBot.y, 2)
+            );
+            if (distance < nearestEnemyDistance && distance < 100) {
+              nearestEnemy = otherBot;
+              nearestEnemyDistance = distance;
+            }
+          }
+        });
+        
+        // Check player if on different team
+        if (selectedTeam !== bot.team && player.size < bot.size) {
+          const playerDistance = Math.sqrt(
+            Math.pow(bot.x - player.x, 2) + Math.pow(bot.y - player.y, 2)
+          );
+          if (playerDistance < nearestEnemyDistance && playerDistance < 100) {
+            nearestEnemy = player;
+            nearestEnemyDistance = playerDistance;
+          }
+        }
+        
+        // Prioritize enemy over food
+        if (nearestEnemy && nearestEnemyDistance < 80) {
+          const dx = nearestEnemy.x - bot.x;
+          const dy = nearestEnemy.y - bot.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance > 0) {
+            targetX = bot.x + (dx / distance) * botBaseSpeed * 1.5;
+            targetY = bot.y + (dy / distance) * botBaseSpeed * 1.5;
+          }
+        } else if (nearestFood) {
+          const dx = nearestFood.x - bot.x;
+          const dy = nearestFood.y - bot.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance > 0) {
+            targetX = bot.x + (dx / distance) * botBaseSpeed;
+            targetY = bot.y + (dy / distance) * botBaseSpeed;
+          }
+        }
+      }
       // Move towards food if found
-      if (nearestFood) {
+      else if (nearestFood) {
         const dx = nearestFood.x - bot.x;
         const dy = nearestFood.y - bot.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -284,6 +376,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         }
       } else {
         // Random movement
+        if (!bot.vx) bot.vx = (Math.random() - 0.5) * 2;
+        if (!bot.vy) bot.vy = (Math.random() - 0.5) * 2;
         targetX = bot.x + (bot.vx || 0) * botBaseSpeed;
         targetY = bot.y + (bot.vy || 0) * botBaseSpeed;
       }
@@ -314,6 +408,27 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         targetY = Math.max(bot.size, Math.min(CANVAS_HEIGHT - bot.size, targetY));
       }
       
+      // Battle Royale: damage bots outside play area
+      if (gameMode === 'battleRoyale') {
+        const centerX = CANVAS_WIDTH / 2;
+        const centerY = CANVAS_HEIGHT / 2;
+        const distanceFromCenter = Math.sqrt(
+          Math.pow(bot.x - centerX, 2) + Math.pow(bot.y - centerY, 2)
+        );
+        
+        if (distanceFromCenter > playAreaRadius) {
+          bot.size = Math.max(5, bot.size - 1); // Shrink if outside safe zone
+          // Move towards center
+          const dx = centerX - bot.x;
+          const dy = centerY - bot.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          if (distance > 0) {
+            targetX = bot.x + (dx / distance) * botBaseSpeed * 2;
+            targetY = bot.y + (dy / distance) * botBaseSpeed * 2;
+          }
+        }
+      }
+      
       return { ...bot, x: targetX, y: targetY };
     }));
 
@@ -326,7 +441,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         
         if (distance < player.size / 2 + food.size / 2) {
           // Only growth, no points for food
-          setPlayer(prev => ({ ...prev, size: prev.size + 0.3 }));
+          growPlayer(0.3);
           return false;
         }
         return true;
@@ -349,6 +464,24 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       return remainingFoods;
     });
 
+    // Battle Royale: damage player outside play area
+    if (gameMode === 'battleRoyale') {
+      const centerX = CANVAS_WIDTH / 2;
+      const centerY = CANVAS_HEIGHT / 2;
+      const distanceFromCenter = Math.sqrt(
+        Math.pow(player.x - centerX, 2) + Math.pow(player.y - centerY, 2)
+      );
+      
+      if (distanceFromCenter > playAreaRadius) {
+        setPlayer(prev => ({ ...prev, size: Math.max(10, prev.size - 0.5) }));
+      }
+    }
+
+    // Battle Royale: Check if only player remains
+    if (gameMode === 'battleRoyale' && bots.length === 0) {
+      handleGameOver(); // Player wins!
+    }
+
     // Check collisions with bots
     const hasInstantKill = upgrades.find(u => u.id === 'instant_kill' && u.owned);
     const doublePoints = activePowerUps.find(p => p.id === 'double_points');
@@ -369,23 +502,32 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           updateStats(totalPoints);
           updateChallengeProgress('eat_blobs', 1);
           
+          // Growth from eating other blobs
+          growPlayer(bot.size * 0.1);
+          
           setBots(prev => prev.filter(b => b.id !== bot.id));
           
           // Add new bot to maintain population
-          const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+          if (gameMode !== 'battleRoyale') { // Don't respawn in Battle Royale
+            const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+            const teamColors = { red: '#EF4444', blue: '#3B82F6' };
           const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Theta', 'Zeta', 'Kappa', 'Lambda'];
+            const team = gameMode === 'team' ? (Math.random() > 0.5 ? 'red' : 'blue') : undefined;
+            const botColor = gameMode === 'team' ? teamColors[team as 'red' | 'blue'] : colors[Math.floor(Math.random() * colors.length)];
           
           setBots(prev => [...prev, {
             id: `bot-${Date.now()}`,
             x: Math.random() * CANVAS_WIDTH,
             y: Math.random() * CANVAS_HEIGHT,
             size: 10 + Math.random() * 40,
-            color: colors[Math.floor(Math.random() * colors.length)],
+              color: botColor,
             isBot: true,
             vx: (Math.random() - 0.5) * 2,
             vy: (Math.random() - 0.5) * 2,
             name: names[Math.floor(Math.random() * names.length)],
+              team: team,
           }]);
+          }
         } else if (!shieldActive) {
           // Bot eats player - game over (only if no shield)
           handleGameOver();
@@ -475,6 +617,32 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       ctx.stroke();
     }
     
+    // Draw Battle Royale safe zone
+    if (gameMode === 'battleRoyale') {
+      const centerX = CANVAS_WIDTH / 2 - camera.x;
+      const centerY = CANVAS_HEIGHT / 2 - camera.y;
+      
+      // Draw danger zone (outside safe area)
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
+      
+      // Draw safe zone
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, playAreaRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      
+      // Draw safe zone border
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([10, 5]);
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, playAreaRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // Draw foods
     foods.forEach(food => {
       const screenX = food.x - camera.x;
@@ -510,6 +678,12 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         
         // Draw bot outline
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        
+        // Team mode: different outline colors
+        if (gameMode === 'team' && bot.team) {
+          ctx.strokeStyle = bot.team === 'red' ? '#EF4444' : '#3B82F6';
+        }
+        
         ctx.lineWidth = 1;
         ctx.stroke();
         
@@ -534,7 +708,14 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       ctx.shadowBlur = evolutionStage === 'legendary' ? 20 : evolutionStage === 'epic' ? 15 : 10;
     }
     
-    ctx.fillStyle = getPlayerColor();
+    let playerColor = getPlayerColor();
+    
+    // Team mode: use team colors
+    if (gameMode === 'team') {
+      playerColor = selectedTeam === 'red' ? '#EF4444' : '#3B82F6';
+    }
+    
+    ctx.fillStyle = playerColor;
     ctx.beginPath();
     ctx.arc(playerScreenX, playerScreenY, player.size / 2, 0, Math.PI * 2);
     ctx.fill();
@@ -555,6 +736,12 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     ctx.strokeStyle = evolutionStage === 'legendary' ? '#FFD700' : 
                      evolutionStage === 'epic' ? '#9333EA' :
                      evolutionStage === 'rare' ? '#3B82F6' : '#FFFFFF';
+                     
+    // Team mode: team-colored outline
+    if (gameMode === 'team') {
+      ctx.strokeStyle = selectedTeam === 'red' ? '#EF4444' : '#3B82F6';
+    }
+                     
     ctx.lineWidth = evolutionStage === 'legendary' ? 4 : 2;
     ctx.stroke();
     
@@ -643,6 +830,26 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
               <Heart size={14} className="text-red-400" />
               <span>{stats.livesRemaining}</span>
             </div>
+            {gameMode === 'timeAttack' && (
+              <div className="flex items-center gap-1">
+                <span className="text-yellow-400">⏱️</span>
+                <span>{Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}</span>
+              </div>
+            )}
+            {gameMode === 'battleRoyale' && (
+              <div className="flex items-center gap-1">
+                <span className="text-green-400">🛡️</span>
+                <span>{Math.round(playAreaRadius)}</span>
+              </div>
+            )}
+            {gameMode === 'team' && (
+              <div className="flex items-center gap-1">
+                <span className={selectedTeam === 'red' ? 'text-red-400' : 'text-blue-400'}>
+                  {selectedTeam === 'red' ? '🔴' : '🔵'}
+                </span>
+                <span className="capitalize">{selectedTeam}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <button

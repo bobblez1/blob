@@ -114,6 +114,64 @@ function HomeScreen({ onPlay, onStore, onDashboard, onSettings }: HomeScreenProp
         )}
       </div>
 
+      {/* Game Mode Selection */}
+      <div className="relative z-10 px-6 mb-4">
+        <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+          <Target size={16} className="text-blue-400" />
+          Game Mode
+        </h3>
+        <div className="grid grid-cols-2 gap-2">
+          {[
+            { id: 'classic', name: 'Classic', icon: '🎯', desc: 'Standard gameplay' },
+            { id: 'timeAttack', name: 'Time Attack', icon: '⏱️', desc: '3 min survival' },
+            { id: 'battleRoyale', name: 'Battle Royale', icon: '👑', desc: 'Last blob standing' },
+            { id: 'team', name: 'Team Mode', icon: '🤝', desc: 'Red vs Blue' },
+          ].map(mode => (
+            <button
+              key={mode.id}
+              onClick={() => setGameMode(mode.id as any)}
+              className={`p-3 rounded-xl border transition-all duration-200 ${
+                gameMode === mode.id
+                  ? 'bg-blue-500/30 border-blue-500/50 text-blue-200'
+                  : 'bg-gray-800/30 border-gray-700/50 text-gray-300 hover:bg-gray-700/30'
+              }`}
+            >
+              <div className="text-lg mb-1">{mode.icon}</div>
+              <div className="text-xs font-semibold">{mode.name}</div>
+              <div className="text-xs opacity-75">{mode.desc}</div>
+            </button>
+          ))}
+        </div>
+        
+        {gameMode === 'team' && (
+          <div className="mt-3">
+            <p className="text-gray-400 text-xs mb-2">Select your team:</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedTeam('red')}
+                className={`flex-1 p-2 rounded-lg border transition-all ${
+                  selectedTeam === 'red'
+                    ? 'bg-red-500/30 border-red-500/50 text-red-200'
+                    : 'bg-gray-800/30 border-gray-700/50 text-gray-300'
+                }`}
+              >
+                🔴 Red Team
+              </button>
+              <button
+                onClick={() => setSelectedTeam('blue')}
+                className={`flex-1 p-2 rounded-lg border transition-all ${
+                  selectedTeam === 'blue'
+                    ? 'bg-blue-500/30 border-blue-500/50 text-blue-200'
+                    : 'bg-gray-800/30 border-gray-700/50 text-gray-300'
+                }`}
+              >
+                🔵 Blue Team
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Stats Cards */}
       <div className="relative z-10 px-6 mb-6">
         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -270,6 +328,45 @@ function HomeScreen({ onPlay, onStore, onDashboard, onSettings }: HomeScreenProp
           🏆 Become the ultimate blob champion!
         </p>
       </div>
+
+      {/* Game Mode Selection Modal */}
+      {showGameModes && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+          <div className="bg-gray-900/90 p-6 rounded-2xl text-white max-w-xs mx-4">
+            <h2 className="text-xl font-bold mb-4 text-center">Select Game Mode</h2>
+            
+            <div className="space-y-3">
+              {[
+                { id: 'classic', name: 'Classic Mode', icon: '🎯', desc: 'Standard blob vs blob gameplay' },
+                { id: 'timeAttack', name: 'Time Attack', icon: '⏱️', desc: 'Survive 3 minutes, bots get aggressive' },
+                { id: 'battleRoyale', name: 'Battle Royale', icon: '👑', desc: 'Last blob standing wins' },
+                { id: 'team', name: 'Team Mode', icon: '🤝', desc: 'Red vs Blue team battle' },
+              ].map(mode => (
+                <button
+                  key={mode.id}
+                  onClick={() => handleModeSelect(mode.id as any)}
+                  className="w-full p-3 rounded-xl bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{mode.icon}</span>
+                    <div>
+                      <div className="font-semibold">{mode.name}</div>
+                      <div className="text-sm text-gray-400">{mode.desc}</div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            <button
+              onClick={() => setShowGameModes(false)}
+              className="w-full mt-4 p-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
