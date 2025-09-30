@@ -328,45 +328,6 @@ function HomeScreen({ onPlay, onStore, onDashboard, onSettings }: HomeScreenProp
           🏆 Become the ultimate blob champion!
         </p>
       </div>
-
-      {/* Game Mode Selection Modal */}
-      {showGameModes && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
-          <div className="bg-gray-900/90 p-6 rounded-2xl text-white max-w-xs mx-4">
-            <h2 className="text-xl font-bold mb-4 text-center">Select Game Mode</h2>
-            
-            <div className="space-y-3">
-              {[
-                { id: 'classic', name: 'Classic Mode', icon: '🎯', desc: 'Standard blob vs blob gameplay' },
-                { id: 'timeAttack', name: 'Time Attack', icon: '⏱️', desc: 'Survive 3 minutes, bots get aggressive' },
-                { id: 'battleRoyale', name: 'Battle Royale', icon: '👑', desc: 'Last blob standing wins' },
-                { id: 'team', name: 'Team Mode', icon: '🤝', desc: 'Red vs Blue team battle' },
-              ].map(mode => (
-                <button
-                  key={mode.id}
-                  onClick={() => handleModeSelect(mode.id as any)}
-                  className="w-full p-3 rounded-xl bg-gray-800/50 border border-gray-700/50 hover:bg-gray-700/50 transition-all text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{mode.icon}</span>
-                    <div>
-                      <div className="font-semibold">{mode.name}</div>
-                      <div className="text-sm text-gray-400">{mode.desc}</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            
-            <button
-              onClick={() => setShowGameModes(false)}
-              className="w-full mt-4 p-2 rounded-lg bg-gray-600 hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
