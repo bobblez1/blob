@@ -21,7 +21,7 @@ interface HomeScreenProps {
 }
 
 function HomeScreen({ onPlay, onStore, onDashboard, onSettings }: HomeScreenProps) {
-  const { stats, upgrades } = useGame();
+  const { stats, upgrades, gameMode, setGameMode, selectedTeam, setSelectedTeam } = useGame();
   const [animatedPoints, setAnimatedPoints] = useState(0);
   const [showWelcome, setShowWelcome] = useState(false);
 
