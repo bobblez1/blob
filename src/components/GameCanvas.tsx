@@ -44,6 +44,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     gameActive, 
     playerSize, 
     updateStats, 
+   growPlayer,
     startGame, 
     endGame, 
     useLife, 
