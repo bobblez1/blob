@@ -38,6 +38,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     upgrades, 
     challenges,
     activePowerUps,
+    gameMode,
+    selectedTeam,
     currentPoints, 
     gameActive, 
     playerSize, 
@@ -67,6 +69,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   const [isPaused, setIsPaused] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [shieldActive, setShieldActive] = useState(false);
+  const [timeRemaining, setTimeRemaining] = useState(180); // 3 minutes for Time Attack
+  const [playAreaRadius, setPlayAreaRadius] = useState(Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) / 2); // For Battle Royale
 
   // Initialize game
   useEffect(() => {
