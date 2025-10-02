@@ -13,6 +13,7 @@ interface Blob {
   vx?: number;
   vy?: number;
   name?: string;
+  team?: 'red' | 'blue';
 }
 
 interface GameCanvasProps {
@@ -42,14 +43,13 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     selectedTeam,
     currentPoints, 
     gameActive, 
-    playerSize, 
-    updateStats, 
     startGame, 
     endGame, 
     useLife, 
     revivePlayer,
     updateChallengeProgress,
-    activatePowerUp
+    activatePowerUp,
+    growPlayer
   } = useGame();
   
   const [player, setPlayer] = useState<Blob>({
@@ -161,9 +161,14 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   useEffect(() => {
     if (gameActive && !gameOver && !isPaused) {
       const gameLoop = () => {
-        updateGame();
-        draw();
-        animationRef.current = requestAnimationFrame(gameLoop);
+        try {
+          updateGame();
+          draw();
+          animationRef.current = requestAnimationFrame(gameLoop);
+        } catch (error) {
+          console.error('Game loop error:', error);
+          setGameOver(true);
+        }
       };
       animationRef.current = requestAnimationFrame(gameLoop);
     }
@@ -220,14 +225,14 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   };
 
   const updateGame = () => {
-    // Update player size
+    // Update player size from context
     setPlayer(prev => ({ ...prev, size: playerSize }));
     
     // Blob decay mechanic - slowly shrink if inactive
     const now = Date.now();
     if (now - lastDecayTime.current > 2000) { // Every 2 seconds
       if (playerSize > 20) { // Don't shrink below minimum size
-        setPlayer(prev => ({ ...prev, size: Math.max(20, prev.size - 0.5) }));
+        growPlayer(-0.5); // Use context function to update size
       }
       lastDecayTime.current = now;
     }
@@ -437,6 +442,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     }));
 
     // Check collisions with food (growth only, no points)
+    let totalGrowthThisFrame = 0;
+    
     setFoods(prevFoods => {
       const remainingFoods = prevFoods.filter(food => {
         const distance = Math.sqrt(
@@ -444,8 +451,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         );
         
         if (distance < player.size / 2 + food.size / 2) {
-          // Only growth, no points for food
-          growPlayer(0.3);
+          // Accumulate growth instead of calling growPlayer directly
+          totalGrowthThisFrame += 0.3;
           return false;
         }
         return true;
@@ -467,6 +474,11 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       
       return remainingFoods;
     });
+    
+    // Apply accumulated growth after state update
+    if (totalGrowthThisFrame > 0) {
+      growPlayer(totalGrowthThisFrame);
+    }
 
     // Battle Royale: damage player outside play area
     if (gameMode === 'battleRoyale') {
@@ -477,7 +489,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       );
       
       if (distanceFromCenter > playAreaRadius) {
-        setPlayer(prev => ({ ...prev, size: Math.max(10, prev.size - 0.5) }));
+        growPlayer(-0.5); // Use context function
       }
     }
 
@@ -507,7 +519,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           updateChallengeProgress('eat_blobs', 1);
           
           // Growth from eating other blobs
-          growPlayer(bot.size * 0.1);
+          const growthAmount = bot.size * 0.1;
+          growPlayer(growthAmount);
           
           setBots(prev => prev.filter(b => b.id !== bot.id));
           
@@ -515,22 +528,22 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           if (gameMode !== 'battleRoyale') { // Don't respawn in Battle Royale
             const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
             const teamColors = { red: '#EF4444', blue: '#3B82F6' };
-          const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Theta', 'Zeta', 'Kappa', 'Lambda'];
+            const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Theta', 'Zeta', 'Kappa', 'Lambda'];
             const team = gameMode === 'team' ? (Math.random() > 0.5 ? 'red' : 'blue') : undefined;
             const botColor = gameMode === 'team' ? teamColors[team as 'red' | 'blue'] : colors[Math.floor(Math.random() * colors.length)];
-          
-          setBots(prev => [...prev, {
-            id: `bot-${Date.now()}`,
-            x: Math.random() * CANVAS_WIDTH,
-            y: Math.random() * CANVAS_HEIGHT,
-            size: 10 + Math.random() * 40,
+            
+            setBots(prev => [...prev, {
+              id: `bot-${Date.now()}`,
+              x: Math.random() * CANVAS_WIDTH,
+              y: Math.random() * CANVAS_HEIGHT,
+              size: 10 + Math.random() * 40,
               color: botColor,
-            isBot: true,
-            vx: (Math.random() - 0.5) * 2,
-            vy: (Math.random() - 0.5) * 2,
-            name: names[Math.floor(Math.random() * names.length)],
+              isBot: true,
+              vx: (Math.random() - 0.5) * 2,
+              vy: (Math.random() - 0.5) * 2,
+              name: names[Math.floor(Math.random() * names.length)],
               team: team,
-          }]);
+            }]);
           }
         } else if (!shieldActive) {
           // Bot eats player - game over (only if no shield)
@@ -574,6 +587,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         name: 'You',
       });
       generateBots();
+      generateFoods();
       gameStartTime.current = Date.now();
       startGame();
     }

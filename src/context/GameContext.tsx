@@ -306,7 +306,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const updateStats = (points: number) => {
     setCurrentPoints(prev => prev + points);
-  }
+  };
+  
   const growPlayer = (amount: number) => {
     setPlayerSize(prev => prev + amount);
   };
@@ -466,9 +467,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       refillLives,
       gameMode,
       setGameMode,
-      growPlayer,
       selectedTeam,
       setSelectedTeam,
+      growPlayer,
     }}>
       {children}
     </GameContext.Provider>
