@@ -25,6 +25,7 @@ const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 1500;
 const VIEWPORT_WIDTH = 360;
 const VIEWPORT_HEIGHT = 640;
+const FOOD_COLOR = '#DC2626';
 
 function GameCanvas({ onGameEnd }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
