@@ -309,7 +309,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   };
   
   const growPlayer = (amount: number) => {
-    setPlayerSize(prev => prev + amount);
+    setPlayerSize(prev => Math.max(5, prev + amount));
   };
 
   const purchaseUpgrade = (upgradeId: string) => {
