@@ -552,6 +552,28 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         }
       }
     });
+    
+    // Bots eat food
+    setFoods(prevFoods => {
+      return prevFoods.filter(food => {
+        let eaten = false;
+        bots.forEach(bot => {
+          const distance = Math.sqrt(
+            Math.pow(bot.x - food.x, 2) + Math.pow(bot.y - food.y, 2)
+          );
+          if (distance < bot.size / 2 + food.size / 2) {
+            // Bot grows when eating food
+            setBots(prevBots => 
+              prevBots.map(b => 
+                b.id === bot.id ? { ...b, size: b.size + 0.2 } : b
+              )
+            );
+            eaten = true;
+          }
+        });
+        return !eaten;
+      });
+    });
 
     // Update survival time challenge
     const survivalTime = (now - gameStartTime.current) / 1000;
