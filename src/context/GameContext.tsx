@@ -466,6 +466,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       refillLives,
       gameMode,
       setGameMode,
+      growPlayer,
       selectedTeam,
       setSelectedTeam,
     }}>
