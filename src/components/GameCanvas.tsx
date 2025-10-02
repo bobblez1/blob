@@ -42,6 +42,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     gameMode,
     selectedTeam,
     currentPoints, 
+    playerSize,
     gameActive, 
     startGame, 
     endGame, 
