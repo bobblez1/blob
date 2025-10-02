@@ -452,7 +452,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           Math.pow(player.x - food.x, 2) + Math.pow(player.y - food.y, 2)
         );
         
-        if (distance < playerSize / 2 + food.size / 2) {
+        if (distance < player.size / 2 + food.size / 2) {
           // Accumulate growth instead of calling growPlayer directly
           totalGrowthThisFrame += 0.3;
           return false;
@@ -462,13 +462,14 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       
       // Regenerate food if needed
       if (remainingFoods.length < 150) {
+        const colors = ['#FBBF24', '#34D399', '#F87171', '#A78BFA', '#60A5FA', '#F472B6', '#10B981'];
         for (let i = 0; i < 30; i++) {
           remainingFoods.push({
             id: `food-${Date.now()}-${i}`,
             x: Math.random() * CANVAS_WIDTH,
             y: Math.random() * CANVAS_HEIGHT,
             size: 2 + Math.random() * 4,
-            color: FOOD_COLOR,
+            color: colors[Math.floor(Math.random() * colors.length)],
           });
         }
       }
@@ -604,7 +605,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         id: 'player',
         x: CANVAS_WIDTH / 2,
         y: CANVAS_HEIGHT / 2,
-        size: 20,
+       size: playerSize,
         color: getPlayerColor(),
         isPlayer: true,
         name: 'You',
