@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '../context/GameContext';
 import { Play, Pause, RotateCcw, Heart, Home, Zap, Shield, Star } from 'lucide-react';
 
+// Constants
+const FOOD_COLOR = '#DC2626';
+
 interface Blob {
   id: string;
   x: number;
@@ -25,7 +28,6 @@ const CANVAS_WIDTH = 1000;
 const CANVAS_HEIGHT = 1500;
 const VIEWPORT_WIDTH = 360;
 const VIEWPORT_HEIGHT = 640;
-const FOOD_COLOR = '#DC2626';
 
 function GameCanvas({ onGameEnd }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -212,7 +214,6 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
 
   const generateFoods = () => {
     const newFoods: Blob[] = [];
-    const colors = ['#FBBF24', '#34D399', '#F87171', '#A78BFA', '#60A5FA', '#F472B6', '#10B981'];
     
     for (let i = 0; i < 200; i++) {
       newFoods.push({
@@ -220,21 +221,29 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         x: Math.random() * CANVAS_WIDTH,
         y: Math.random() * CANVAS_HEIGHT,
         size: 2 + Math.random() * 4,
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: FOOD_COLOR,
       });
     }
     setFoods(newFoods);
   };
 
+  // Helper function for distance calculation
+  const calculateDistance = (x1: number, y1: number, x2: number, y2: number) => {
+    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+  };
+
   const updateGame = () => {
-    // Update player size from context
-    setPlayer(prev => ({ ...prev, size: playerSize }));
+    // Create mutable copies for processing
+    let currentFoods = [...foods];
+    let currentBots = [...bots];
+    let newPlayerSize = playerSize;
     
     // Blob decay mechanic - slowly shrink if inactive
     const now = Date.now();
     if (now - lastDecayTime.current > 2000) { // Every 2 seconds
-      if (playerSize > 20) { // Don't shrink below minimum size
+      if (newPlayerSize > 20) { // Don't shrink below minimum size
         growPlayer(-0.5); // Use context function to update size
+        newPlayerSize = Math.max(20, newPlayerSize - 0.5);
       }
       lastDecayTime.current = now;
     }
@@ -250,7 +259,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       
       // Calculate speed based on size (bigger = slower)
       const baseSpeed = upgrades.find(u => u.id === 'speed_boost' && u.owned) ? 3.5 : 2.5;
-      const sizeSpeedFactor = Math.max(0.3, 1 - (playerSize - 20) / 200); // Slower as size increases
+      const sizeSpeedFactor = Math.max(0.3, 1 - (newPlayerSize - 20) / 200); // Slower as size increases
       const speed = baseSpeed * sizeSpeedFactor;
       
       let moveX = 0;
@@ -280,8 +289,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       if (moveX !== 0 || moveY !== 0) {
         setPlayer(prev => ({
           ...prev,
-          x: Math.max(prev.size, Math.min(CANVAS_WIDTH - prev.size, prev.x + moveX)),
-          y: Math.max(prev.size, Math.min(CANVAS_HEIGHT - prev.size, prev.y + moveY)),
+          x: Math.max(newPlayerSize, Math.min(CANVAS_WIDTH - newPlayerSize, prev.x + moveX)),
+          y: Math.max(newPlayerSize, Math.min(CANVAS_HEIGHT - newPlayerSize, prev.y + moveY)),
         }));
         
         // Reset decay timer when moving
@@ -295,8 +304,40 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       y: Math.max(0, Math.min(CANVAS_HEIGHT - VIEWPORT_HEIGHT, player.y - VIEWPORT_HEIGHT / 2)),
     });
 
+    // Player-Food Interaction
+    let totalGrowthThisFrame = 0;
+    currentFoods = currentFoods.filter(food => {
+      const distance = calculateDistance(player.x, player.y, food.x, food.y);
+      if (distance < newPlayerSize / 2 + food.size / 2) {
+        totalGrowthThisFrame += 0.3;
+        return false; // Remove food
+      }
+      return true; // Keep food
+    });
+    
+    // Apply player growth
+    if (totalGrowthThisFrame > 0) {
+      growPlayer(totalGrowthThisFrame);
+      newPlayerSize += totalGrowthThisFrame;
+    }
+
+    // Bot-Food Interaction
+    currentBots = currentBots.map(bot => {
+      let botGrowth = 0;
+      currentFoods = currentFoods.filter(food => {
+        const distance = calculateDistance(bot.x, bot.y, food.x, food.y);
+        if (distance < bot.size / 2 + food.size / 2) {
+          botGrowth += 0.2;
+          return false; // Remove food
+        }
+        return true; // Keep food
+      });
+      
+      return { ...bot, size: bot.size + botGrowth };
+    });
+
     // Update bots with improved AI
-    setBots(prevBots => prevBots.map(bot => {
+    currentBots = currentBots.map(bot => {
       // Bot speed based on size
       let botBaseSpeed = Math.max(0.5, 1.5 - (bot.size - 10) / 100);
       
@@ -310,18 +351,45 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       
       let targetX = bot.x;
       let targetY = bot.y;
+      let foundTarget = false;
       
       // Find nearest food
       let nearestFood = null;
       let nearestFoodDistance = Infinity;
       
-      foods.forEach(food => {
-        const distance = Math.sqrt(
-          Math.pow(bot.x - food.x, 2) + Math.pow(bot.y - food.y, 2)
-        );
+      currentFoods.forEach(food => {
+        const distance = calculateDistance(bot.x, bot.y, food.x, food.y);
         if (distance < nearestFoodDistance && distance < 150) {
           nearestFood = food;
           nearestFoodDistance = distance;
+        }
+      });
+      
+      // Find nearest smaller bot to eat
+      let nearestSmallBot = null;
+      let nearestSmallBotDistance = Infinity;
+      
+      currentBots.forEach(otherBot => {
+        if (otherBot.id !== bot.id && otherBot.size < bot.size * 0.8) {
+          const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
+          if (distance < nearestSmallBotDistance && distance < 100) {
+            nearestSmallBot = otherBot;
+            nearestSmallBotDistance = distance;
+          }
+        }
+      });
+      
+      // Find nearest larger bot to avoid
+      let nearestLargeBot = null;
+      let nearestLargeBotDistance = Infinity;
+      
+      currentBots.forEach(otherBot => {
+        if (otherBot.id !== bot.id && otherBot.size > bot.size * 1.2) {
+          const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
+          if (distance < nearestLargeBotDistance && distance < 80) {
+            nearestLargeBot = otherBot;
+            nearestLargeBotDistance = distance;
+          }
         }
       });
       
@@ -331,11 +399,9 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         let nearestEnemyDistance = Infinity;
         
         // Check other bots
-        prevBots.forEach(otherBot => {
+        currentBots.forEach(otherBot => {
           if (otherBot.id !== bot.id && otherBot.team !== bot.team && otherBot.size < bot.size) {
-            const distance = Math.sqrt(
-              Math.pow(bot.x - otherBot.x, 2) + Math.pow(bot.y - otherBot.y, 2)
-            );
+            const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
             if (distance < nearestEnemyDistance && distance < 100) {
               nearestEnemy = otherBot;
               nearestEnemyDistance = distance;
@@ -344,10 +410,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         });
         
         // Check player if on different team
-        if (selectedTeam !== bot.team && player.size < bot.size) {
-          const playerDistance = Math.sqrt(
-            Math.pow(bot.x - player.x, 2) + Math.pow(bot.y - player.y, 2)
-          );
+        if (selectedTeam !== bot.team && newPlayerSize < bot.size) {
+          const playerDistance = calculateDistance(bot.x, bot.y, player.x, player.y);
           if (playerDistance < nearestEnemyDistance && playerDistance < 100) {
             nearestEnemy = player;
             nearestEnemyDistance = playerDistance;
@@ -363,20 +427,55 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           if (distance > 0) {
             targetX = bot.x + (dx / distance) * botBaseSpeed * 1.5;
             targetY = bot.y + (dy / distance) * botBaseSpeed * 1.5;
-          }
-        } else if (nearestFood) {
-          const dx = nearestFood.x - bot.x;
-          const dy = nearestFood.y - bot.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          
-          if (distance > 0) {
-            targetX = bot.x + (dx / distance) * botBaseSpeed;
-            targetY = bot.y + (dy / distance) * botBaseSpeed;
+            foundTarget = true;
           }
         }
       }
+      
+      // Avoid larger bots and player (highest priority)
+      if (!foundTarget && nearestLargeBot && nearestLargeBotDistance < 60) {
+        const dx = bot.x - nearestLargeBot.x;
+        const dy = bot.y - nearestLargeBot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance > 0) {
+          targetX = bot.x + (dx / distance) * botBaseSpeed * 2;
+          targetY = bot.y + (dy / distance) * botBaseSpeed * 2;
+          foundTarget = true;
+        }
+      }
+      
+      // Avoid larger player
+      if (!foundTarget) {
+        const playerDistance = calculateDistance(bot.x, bot.y, player.x, player.y);
+        if (playerDistance < 80 && newPlayerSize > bot.size * 1.2 && !shieldActive) {
+          const dx = bot.x - player.x;
+          const dy = bot.y - player.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance > 0) {
+            targetX = bot.x + (dx / distance) * botBaseSpeed * 2;
+            targetY = bot.y + (dy / distance) * botBaseSpeed * 2;
+            foundTarget = true;
+          }
+        }
+      }
+      
+      // Chase smaller bots
+      if (!foundTarget && nearestSmallBot && nearestSmallBotDistance < 80) {
+        const dx = nearestSmallBot.x - bot.x;
+        const dy = nearestSmallBot.y - bot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance > 0) {
+          targetX = bot.x + (dx / distance) * botBaseSpeed * 1.5;
+          targetY = bot.y + (dy / distance) * botBaseSpeed * 1.5;
+          foundTarget = true;
+        }
+      }
+      
       // Move towards food if found
-      else if (nearestFood) {
+      if (!foundTarget && nearestFood) {
         const dx = nearestFood.x - bot.x;
         const dy = nearestFood.y - bot.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -384,29 +483,18 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         if (distance > 0) {
           targetX = bot.x + (dx / distance) * botBaseSpeed;
           targetY = bot.y + (dy / distance) * botBaseSpeed;
+          foundTarget = true;
         }
-      } else {
-        // Random movement
-        if (!bot.vx) bot.vx = (Math.random() - 0.5) * 2;
-        if (!bot.vy) bot.vy = (Math.random() - 0.5) * 2;
-        targetX = bot.x + (bot.vx || 0) * botBaseSpeed;
-        targetY = bot.y + (bot.vy || 0) * botBaseSpeed;
       }
       
-      // Avoid larger blobs (including player)
-      const playerDistance = Math.sqrt(
-        Math.pow(bot.x - player.x, 2) + Math.pow(bot.y - player.y, 2)
-      );
-      
-      if (playerDistance < 100 && player.size > bot.size && !shieldActive) {
-        const dx = bot.x - player.x;
-        const dy = bot.y - player.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance > 0) {
-          targetX = bot.x + (dx / distance) * botBaseSpeed * 2;
-          targetY = bot.y + (dy / distance) * botBaseSpeed * 2;
+      // Random movement if no target
+      if (!foundTarget) {
+        if (!bot.vx || !bot.vy || Math.random() < 0.02) {
+          bot.vx = (Math.random() - 0.5) * 4;
+          bot.vy = (Math.random() - 0.5) * 4;
         }
+        targetX = bot.x + bot.vx * botBaseSpeed;
+        targetY = bot.y + bot.vy * botBaseSpeed;
       }
       
       // Bounce off walls
@@ -423,80 +511,62 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       if (gameMode === 'battleRoyale') {
         const centerX = CANVAS_WIDTH / 2;
         const centerY = CANVAS_HEIGHT / 2;
-        const distanceFromCenter = Math.sqrt(
-          Math.pow(bot.x - centerX, 2) + Math.pow(bot.y - centerY, 2)
-        );
+        const distanceFromCenter = calculateDistance(bot.x, bot.y, centerX, centerY);
         
         if (distanceFromCenter > playAreaRadius) {
           bot.size = Math.max(5, bot.size - 1); // Shrink if outside safe zone
-          // Move towards center
-          const dx = centerX - bot.x;
-          const dy = centerY - bot.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance > 0) {
-            targetX = bot.x + (dx / distance) * botBaseSpeed * 2;
-            targetY = bot.y + (dy / distance) * botBaseSpeed * 2;
-          }
         }
       }
       
       return { ...bot, x: targetX, y: targetY };
-    }));
-
-    // Check collisions with food (growth only, no points)
-    let totalGrowthThisFrame = 0;
-    
-    setFoods(prevFoods => {
-      const remainingFoods = prevFoods.filter(food => {
-        const distance = Math.sqrt(
-          Math.pow(player.x - food.x, 2) + Math.pow(player.y - food.y, 2)
-        );
-        
-        if (distance < player.size / 2 + food.size / 2) {
-          // Accumulate growth instead of calling growPlayer directly
-          totalGrowthThisFrame += 0.3;
-          return false;
-        }
-        return true;
-      });
-      
-      // Regenerate food if needed
-      if (remainingFoods.length < 150) {
-        const colors = ['#FBBF24', '#34D399', '#F87171', '#A78BFA', '#60A5FA', '#F472B6', '#10B981'];
-        for (let i = 0; i < 30; i++) {
-          remainingFoods.push({
-            id: `food-${Date.now()}-${i}`,
-            x: Math.random() * CANVAS_WIDTH,
-            y: Math.random() * CANVAS_HEIGHT,
-            size: 2 + Math.random() * 4,
-            color: colors[Math.floor(Math.random() * colors.length)],
-          });
-        }
-      }
-      
-      return remainingFoods;
     });
     
-    // Apply accumulated growth after state update
-    if (totalGrowthThisFrame > 0) {
-      growPlayer(totalGrowthThisFrame);
+    // Bot-Bot Interaction (bots eating other bots)
+    const botsToRemove = new Set<string>();
+    currentBots = currentBots.map(bot => {
+      if (botsToRemove.has(bot.id)) return bot;
+      
+      let botGrowth = 0;
+      currentBots.forEach(otherBot => {
+        if (bot.id !== otherBot.id && !botsToRemove.has(otherBot.id)) {
+          const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
+          if (distance < bot.size / 2 + otherBot.size / 2 && bot.size > otherBot.size) {
+            botGrowth += otherBot.size * 0.1;
+            botsToRemove.add(otherBot.id);
+          }
+        }
+      });
+      
+      return { ...bot, size: bot.size + botGrowth };
+    }).filter(bot => !botsToRemove.has(bot.id));
+    
+    // Regenerate food if needed
+    if (currentFoods.length < 150) {
+      for (let i = 0; i < 30; i++) {
+        currentFoods.push({
+          id: `food-${Date.now()}-${i}`,
+          x: Math.random() * CANVAS_WIDTH,
+          y: Math.random() * CANVAS_HEIGHT,
+          size: 2 + Math.random() * 4,
+          color: FOOD_COLOR,
+        });
+      }
     }
 
     // Battle Royale: damage player outside play area
     if (gameMode === 'battleRoyale') {
       const centerX = CANVAS_WIDTH / 2;
       const centerY = CANVAS_HEIGHT / 2;
-      const distanceFromCenter = Math.sqrt(
-        Math.pow(player.x - centerX, 2) + Math.pow(player.y - centerY, 2)
-      );
+      const distanceFromCenter = calculateDistance(player.x, player.y, centerX, centerY);
       
       if (distanceFromCenter > playAreaRadius) {
         growPlayer(-0.5); // Use context function
+        newPlayerSize = Math.max(20, newPlayerSize - 0.5);
       }
     }
 
     // Battle Royale: Check if only player remains
-    if (gameMode === 'battleRoyale' && bots.length === 0) {
+    if (gameMode === 'battleRoyale' && currentBots.length === 0) {
       handleGameOver(); // Player wins!
     }
 
@@ -504,13 +574,14 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     const hasInstantKill = upgrades.find(u => u.id === 'instant_kill' && u.owned);
     const doublePoints = activePowerUps.find(p => p.id === 'double_points');
     
-    bots.forEach(bot => {
-      const distance = Math.sqrt(
-        Math.pow(player.x - bot.x, 2) + Math.pow(player.y - bot.y, 2)
-      );
+    const botsToRemoveFromPlayer = new Set<string>();
+    currentBots.forEach(bot => {
+      if (botsToRemoveFromPlayer.has(bot.id)) return;
       
-      if (distance < player.size / 2 + bot.size / 2) {
-        if (player.size > bot.size || hasInstantKill) {
+      const distance = calculateDistance(player.x, player.y, bot.x, bot.y);
+      
+      if (distance < newPlayerSize / 2 + bot.size / 2) {
+        if (newPlayerSize > bot.size || hasInstantKill) {
           // Player eats bot - gain points and growth
           const basePoints = Math.floor(bot.size / 2);
           const multiplier = upgrades.find(u => u.id === 'point_multiplier' && u.owned) ? 2 : 1;
@@ -523,18 +594,19 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
           // Growth from eating other blobs
           const growthAmount = bot.size * 0.1;
           growPlayer(growthAmount);
+          newPlayerSize += growthAmount;
           
-          setBots(prev => prev.filter(b => b.id !== bot.id));
+          botsToRemoveFromPlayer.add(bot.id);
           
           // Add new bot to maintain population
           if (gameMode !== 'battleRoyale') { // Don't respawn in Battle Royale
-            const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
             const teamColors = { red: '#EF4444', blue: '#3B82F6' };
             const names = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Sigma', 'Theta', 'Zeta', 'Kappa', 'Lambda'];
             const team = gameMode === 'team' ? (Math.random() > 0.5 ? 'red' : 'blue') : undefined;
+            const colors = ['#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
             const botColor = gameMode === 'team' ? teamColors[team as 'red' | 'blue'] : colors[Math.floor(Math.random() * colors.length)];
             
-            setBots(prev => [...prev, {
+            currentBots.push({
               id: `bot-${Date.now()}`,
               x: Math.random() * CANVAS_WIDTH,
               y: Math.random() * CANVAS_HEIGHT,
@@ -545,7 +617,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
               vy: (Math.random() - 0.5) * 2,
               name: names[Math.floor(Math.random() * names.length)],
               team: team,
-            }]);
+            });
           }
         } else if (!shieldActive) {
           // Bot eats player - game over (only if no shield)
@@ -554,27 +626,12 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       }
     });
     
-    // Bots eat food
-    setFoods(prevFoods => {
-      return prevFoods.filter(food => {
-        let eaten = false;
-        bots.forEach(bot => {
-          const distance = Math.sqrt(
-            Math.pow(bot.x - food.x, 2) + Math.pow(bot.y - food.y, 2)
-          );
-          if (distance < bot.size / 2 + food.size / 2) {
-            // Bot grows when eating food
-            setBots(prevBots => 
-              prevBots.map(b => 
-                b.id === bot.id ? { ...b, size: b.size + 0.2 } : b
-              )
-            );
-            eaten = true;
-          }
-        });
-        return !eaten;
-      });
-    });
+    // Remove bots eaten by player
+    currentBots = currentBots.filter(bot => !botsToRemoveFromPlayer.has(bot.id));
+    
+    // Update component state
+    setFoods(currentFoods);
+    setBots(currentBots);
 
     // Update survival time challenge
     const survivalTime = (now - gameStartTime.current) / 1000;
@@ -605,7 +662,6 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         id: 'player',
         x: CANVAS_WIDTH / 2,
         y: CANVAS_HEIGHT / 2,
-       size: playerSize,
         color: getPlayerColor(),
         isPlayer: true,
         name: 'You',
@@ -742,7 +798,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     // Draw player with evolution effects
     const playerScreenX = player.x - camera.x;
     const playerScreenY = player.y - camera.y;
-    const evolutionStage = getEvolutionStage(player.size);
+    const evolutionStage = getEvolutionStage(playerSize);
     
     // Player glow based on evolution
     if (evolutionStage !== 'basic') {
@@ -759,7 +815,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     
     ctx.fillStyle = playerColor;
     ctx.beginPath();
-    ctx.arc(playerScreenX, playerScreenY, player.size / 2, 0, Math.PI * 2);
+    ctx.arc(playerScreenX, playerScreenY, playerSize / 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
     
@@ -769,7 +825,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       ctx.lineWidth = 3;
       ctx.setLineDash([5, 5]);
       ctx.beginPath();
-      ctx.arc(playerScreenX, playerScreenY, player.size / 2 + 5, 0, Math.PI * 2);
+      ctx.arc(playerScreenX, playerScreenY, playerSize / 2 + 5, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
     }
@@ -798,7 +854,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       ctx.fillStyle = evolutionStage === 'legendary' ? '#FFD700' : 
                      evolutionStage === 'epic' ? '#9333EA' :
                      evolutionStage === 'rare' ? '#3B82F6' : '#10B981';
-      ctx.fillText(evolutionStage.toUpperCase(), playerScreenX, playerScreenY - player.size / 2 - 8);
+      ctx.fillText(evolutionStage.toUpperCase(), playerScreenX, playerScreenY - playerSize / 2 - 8);
     }
     
     // Draw leaderboard
@@ -811,7 +867,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   };
 
   const drawLeaderboard = (ctx: CanvasRenderingContext2D) => {
-    const allBlobs = [player, ...bots].sort((a, b) => b.size - a.size).slice(0, 5);
+    const playerBlob = { ...player, size: playerSize };
+    const allBlobs = [playerBlob, ...bots].sort((a, b) => b.size - a.size).slice(0, 5);
     
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
     ctx.fillRect(10, 10, 140, 110);
