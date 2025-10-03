@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
+import { FOOD_COLORS } from '../constants/gameConstants';
 import { 
   ArrowLeft, 
   User, 
@@ -12,7 +13,8 @@ import {
   RefreshCw,
   Shield,
   Star,
-  Heart
+  Heart,
+  Palette
 } from 'lucide-react';
 
 interface SettingsProps {
@@ -20,9 +22,7 @@ interface SettingsProps {
 }
 
 function Settings({ onBack }: SettingsProps) {
-  const { stats, resetAllData } = useGame();
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [vibrateEnabled, setVibrateEnabled] = useState(true);
+  const { stats, settings, updateSettings, resetAllData } = useGame();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const handleResetData = () => {
@@ -97,17 +97,17 @@ function Settings({ onBack }: SettingsProps) {
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-2">
-                {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+                {settings.soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
                 <span>Sound Effects</span>
               </div>
               <button
-                onClick={() => setSoundEnabled(!soundEnabled)}
+                onClick={() => updateSettings({ soundEnabled: !settings.soundEnabled })}
                 className={`w-12 h-6 rounded-full transition-colors ${
-                  soundEnabled ? 'bg-green-500' : 'bg-gray-600'
+                  settings.soundEnabled ? 'bg-green-500' : 'bg-gray-600'
                 }`}
               >
                 <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                  soundEnabled ? 'translate-x-6' : 'translate-x-1'
+                  settings.soundEnabled ? 'translate-x-6' : 'translate-x-1'
                 }`} />
               </button>
             </div>
@@ -118,15 +118,70 @@ function Settings({ onBack }: SettingsProps) {
                 <span>Haptic Feedback</span>
               </div>
               <button
-                onClick={() => setVibrateEnabled(!vibrateEnabled)}
+                onClick={() => updateSettings({ vibrateEnabled: !settings.vibrateEnabled })}
                 className={`w-12 h-6 rounded-full transition-colors ${
-                  vibrateEnabled ? 'bg-green-500' : 'bg-gray-600'
+                  settings.vibrateEnabled ? 'bg-green-500' : 'bg-gray-600'
                 }`}
               >
                 <div className={`w-5 h-5 bg-white rounded-full transition-transform ${
-                  vibrateEnabled ? 'translate-x-6' : 'translate-x-1'
+                  settings.vibrateEnabled ? 'translate-x-6' : 'translate-x-1'
                 }`} />
               </button>
+            </div>
+            
+            {/* Food Color Settings */}
+            <div className="space-y-3">
+              <h4 className="font-semibold flex items-center gap-2">
+                <Palette size={16} className="text-pink-400" />
+                Food Appearance
+              </h4>
+              
+              <div className="flex justify-between items-center">
+                <span className="text-gray-300">Food Colors</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => updateSettings({ foodColorMode: 'fixed' })}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      settings.foodColorMode === 'fixed'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    onClick={() => updateSettings({ foodColorMode: 'random' })}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      settings.foodColorMode === 'random'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    Random
+                  </button>
+                </div>
+              </div>
+              
+              {settings.foodColorMode === 'fixed' && (
+                <div className="space-y-2">
+                  <span className="text-sm text-gray-400">Select Food Color:</span>
+                  <div className="grid grid-cols-4 gap-2">
+                    {Object.entries(FOOD_COLORS).map(([name, color]) => (
+                      <button
+                        key={name}
+                        onClick={() => updateSettings({ selectedFoodColor: color })}
+                        className={`w-12 h-8 rounded-lg border-2 transition-all ${
+                          settings.selectedFoodColor === color
+                            ? 'border-white scale-110'
+                            : 'border-gray-600 hover:border-gray-400'
+                        }`}
+                        style={{ backgroundColor: color }}
+                        title={name}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

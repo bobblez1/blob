@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import { UPGRADE_IDS, CHALLENGE_TYPES } from '../constants/gameConstants';
+import { GameSettings } from '../types/gameTypes';
+import { FOOD_COLORS } from '../constants/gameConstants';
 
 interface GameStats {
   totalPoints: number;
@@ -8,6 +12,13 @@ interface GameStats {
   lastLifeReset: string;
   lastLoginDate: string;
   loginStreak: number;
+}
+
+interface GameSettings {
+  soundEnabled: boolean;
+  vibrateEnabled: boolean;
+  foodColorMode: 'fixed' | 'random';
+  selectedFoodColor: string;
 }
 
 interface Upgrade {
@@ -44,6 +55,7 @@ interface GameContextType {
   upgrades: Upgrade[];
   challenges: Challenge[];
   activePowerUps: ActivePowerUp[];
+  settings: GameSettings;
   currentPoints: number;
   gameActive: boolean;
   playerSize: number;
@@ -63,6 +75,7 @@ interface GameContextType {
   refillLives: () => void;
   setGameMode: (mode: 'classic' | 'timeAttack' | 'battleRoyale' | 'team') => void;
   setSelectedTeam: (team: 'red' | 'blue') => void;
+  updateSettings: (settings: Partial<GameSettings>) => void;
 }
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
@@ -77,10 +90,17 @@ const INITIAL_STATS: GameStats = {
   loginStreak: 1,
 };
 
+const INITIAL_SETTINGS: GameSettings = {
+  soundEnabled: true,
+  vibrateEnabled: true,
+  foodColorMode: 'fixed',
+  selectedFoodColor: FOOD_COLORS.RED,
+};
+
 const INITIAL_UPGRADES: Upgrade[] = [
   // Permanent Upgrades
   {
-    id: 'speed_boost',
+    id: UPGRADE_IDS.SPEED_BOOST,
     name: 'Speed Boost',
     description: 'Increase movement speed by 25%',
     price: 100,
@@ -89,7 +109,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
     category: 'permanent',
   },
   {
-    id: 'point_multiplier',
+    id: UPGRADE_IDS.POINT_MULTIPLIER,
     name: '2x Point Multiplier',
     description: 'Double points from eating blobs',
     price: 150,
@@ -98,7 +118,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
     category: 'permanent',
   },
   {
-    id: 'instant_kill',
+    id: UPGRADE_IDS.INSTANT_KILL,
     name: 'Instant Kill',
     description: 'Ability to eat any blob regardless of size',
     price: 200,
@@ -107,7 +127,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
     category: 'permanent',
   },
   {
-    id: 'auto_revive',
+    id: UPGRADE_IDS.AUTO_REVIVE,
     name: 'Auto Revive',
     description: 'Automatically revive once per game',
     price: 250,
@@ -117,7 +137,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
   },
   // Cosmetic Upgrades
   {
-    id: 'red_skin',
+    id: UPGRADE_IDS.RED_SKIN,
     name: 'Crimson Blob',
     description: 'Stand out with a fiery red appearance',
     price: 50,
@@ -127,7 +147,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
     color: '#EF4444',
   },
   {
-    id: 'gold_skin',
+    id: UPGRADE_IDS.GOLD_SKIN,
     name: 'Golden Blob',
     description: 'Shine bright with golden colors',
     price: 100,
@@ -137,7 +157,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
     color: '#F59E0B',
   },
   {
-    id: 'rainbow_skin',
+    id: UPGRADE_IDS.RAINBOW_SKIN,
     name: 'Rainbow Blob',
     description: 'Cycle through rainbow colors',
     price: 200,
@@ -148,7 +168,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
   },
   // Temporary Power-ups
   {
-    id: 'shield',
+    id: UPGRADE_IDS.SHIELD,
     name: '5s Shield',
     description: 'Temporary invulnerability for 5 seconds',
     price: 30,
@@ -158,7 +178,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
     effectDuration: 5000,
   },
   {
-    id: 'double_points',
+    id: UPGRADE_IDS.DOUBLE_POINTS,
     name: '1min Double Points',
     description: 'Double all points for 1 minute',
     price: 50,
@@ -169,7 +189,7 @@ const INITIAL_UPGRADES: Upgrade[] = [
   },
   // Utility
   {
-    id: 'extra_lives',
+    id: UPGRADE_IDS.EXTRA_LIVES,
     name: 'Refill Lives',
     description: 'Instantly refill all 10 lives',
     price: 75,
@@ -188,7 +208,7 @@ const INITIAL_CHALLENGES: Challenge[] = [
     currentValue: 0,
     completed: false,
     reward: 25,
-    type: 'eat_blobs',
+    type: CHALLENGE_TYPES.EAT_BLOBS,
   },
   {
     id: 'eat_50_blobs',
@@ -198,7 +218,7 @@ const INITIAL_CHALLENGES: Challenge[] = [
     currentValue: 0,
     completed: false,
     reward: 100,
-    type: 'eat_blobs',
+    type: CHALLENGE_TYPES.EAT_BLOBS,
   },
   {
     id: 'survive_5_minutes',
@@ -208,7 +228,7 @@ const INITIAL_CHALLENGES: Challenge[] = [
     currentValue: 0,
     completed: false,
     reward: 50,
-    type: 'survive_time',
+    type: CHALLENGE_TYPES.SURVIVE_TIME,
   },
   {
     id: 'play_daily',
@@ -218,14 +238,15 @@ const INITIAL_CHALLENGES: Challenge[] = [
     currentValue: 0,
     completed: false,
     reward: 30,
-    type: 'daily_games',
+    type: CHALLENGE_TYPES.DAILY_GAMES,
   },
 ];
 
 export function GameProvider({ children }: { children: React.ReactNode }) {
-  const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
-  const [upgrades, setUpgrades] = useState<Upgrade[]>(INITIAL_UPGRADES);
-  const [challenges, setChallenges] = useState<Challenge[]>(INITIAL_CHALLENGES);
+  const [stats, setStats] = useLocalStorage<GameStats>('agarGameStats', INITIAL_STATS);
+  const [upgrades, setUpgrades] = useLocalStorage<Upgrade[]>('agarGameUpgrades', INITIAL_UPGRADES);
+  const [challenges, setChallenges] = useLocalStorage<Challenge[]>('agarGameChallenges', INITIAL_CHALLENGES);
+  const [settings, setSettings] = useLocalStorage<GameSettings>('agarGameSettings', INITIAL_SETTINGS);
   const [activePowerUps, setActivePowerUps] = useState<ActivePowerUp[]>([]);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [gameActive, setGameActive] = useState(false);
@@ -233,66 +254,41 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [gameMode, setGameMode] = useState<'classic' | 'timeAttack' | 'battleRoyale' | 'team'>('classic');
   const [selectedTeam, setSelectedTeam] = useState<'red' | 'blue'>('red');
 
-  // Load data from localStorage on mount
+  // Handle daily resets and login streaks
   useEffect(() => {
-    const savedStats = localStorage.getItem('agarGameStats');
-    const savedUpgrades = localStorage.getItem('agarGameUpgrades');
-    const savedChallenges = localStorage.getItem('agarGameChallenges');
+    const today = new Date().toDateString();
     
-    if (savedStats) {
-      const parsedStats = JSON.parse(savedStats);
-      const today = new Date().toDateString();
-      
-      // Check if we need to reset daily lives
-      if (parsedStats.lastLifeReset !== today) {
-        parsedStats.livesRemaining = 10;
-        parsedStats.lastLifeReset = today;
-      }
+    // Check if we need to reset daily lives
+    if (stats.lastLifeReset !== today) {
+      const updatedStats = {
+        ...stats,
+        livesRemaining: 10,
+        lastLifeReset: today,
+      };
       
       // Check login streak
-      if (parsedStats.lastLoginDate !== today) {
+      if (stats.lastLoginDate !== today) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         
-        if (parsedStats.lastLoginDate === yesterday.toDateString()) {
+        if (stats.lastLoginDate === yesterday.toDateString()) {
           // Consecutive day - increment streak
-          parsedStats.loginStreak += 1;
+          updatedStats.loginStreak += 1;
         } else {
           // Streak broken - reset to 1
-          parsedStats.loginStreak = 1;
+          updatedStats.loginStreak = 1;
         }
         
-        parsedStats.lastLoginDate = today;
+        updatedStats.lastLoginDate = today;
         
         // Apply streak rewards
-        const streakBonus = Math.min(parsedStats.loginStreak * 5, 50);
-        parsedStats.totalPoints += streakBonus;
+        const streakBonus = Math.min(updatedStats.loginStreak * 5, 50);
+        updatedStats.totalPoints += streakBonus;
       }
       
-      setStats(parsedStats);
+      setStats(updatedStats);
     }
-    
-    if (savedUpgrades) {
-      setUpgrades(JSON.parse(savedUpgrades));
-    }
-    
-    if (savedChallenges) {
-      setChallenges(JSON.parse(savedChallenges));
-    }
-  }, []);
-
-  // Save data to localStorage when stats, upgrades, or challenges change
-  useEffect(() => {
-    localStorage.setItem('agarGameStats', JSON.stringify(stats));
-  }, [stats]);
-
-  useEffect(() => {
-    localStorage.setItem('agarGameUpgrades', JSON.stringify(upgrades));
-  }, [upgrades]);
-
-  useEffect(() => {
-    localStorage.setItem('agarGameChallenges', JSON.stringify(challenges));
-  }, [challenges]);
+  }, [stats, setStats]);
 
   // Clean up expired power-ups
   useEffect(() => {
@@ -321,7 +317,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       activatePowerUp(upgradeId);
     } else if (upgrade.category === 'utility') {
       // Handle utility purchases
-      if (upgradeId === 'extra_lives') {
+      if (upgradeId === UPGRADE_IDS.EXTRA_LIVES) {
         refillLives();
       }
     } else {
@@ -370,7 +366,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const endGame = (finalScore: number) => {
     setGameActive(false);
-    const multiplier = upgrades.find(u => u.id === 'point_multiplier' && u.owned) ? 2 : 1;
+    const multiplier = upgrades.find(u => u.id === UPGRADE_IDS.POINT_MULTIPLIER && u.owned) ? 2 : 1;
     const totalScore = finalScore * multiplier;
     
     setStats(prev => ({
@@ -381,7 +377,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }));
 
     // Update daily games challenge
-    updateChallengeProgress('daily_games', 1);
+    updateChallengeProgress(CHALLENGE_TYPES.DAILY_GAMES, 1);
   };
 
   const useLife = (): boolean => {
@@ -439,10 +435,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setStats(INITIAL_STATS);
     setUpgrades(INITIAL_UPGRADES);
     setChallenges(INITIAL_CHALLENGES);
+    setSettings(INITIAL_SETTINGS);
     setActivePowerUps([]);
-    localStorage.removeItem('agarGameStats');
-    localStorage.removeItem('agarGameUpgrades');
-    localStorage.removeItem('agarGameChallenges');
+  };
+
+  const updateSettings = (newSettings: Partial<GameSettings>) => {
+    setSettings(prev => ({ ...prev, ...newSettings }));
   };
 
   return (
@@ -451,6 +449,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       upgrades,
       challenges,
       activePowerUps,
+      settings,
       currentPoints,
       gameActive,
       playerSize,
@@ -470,6 +469,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       selectedTeam,
       setSelectedTeam,
       growPlayer,
+      updateSettings,
     }}>
       {children}
     </GameContext.Provider>
