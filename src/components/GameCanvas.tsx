@@ -51,6 +51,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     endGame, 
     useLife, 
     revivePlayer,
+    updateStats,
     updateChallengeProgress,
     activatePowerUp,
     growPlayer
@@ -620,8 +621,10 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
             });
           }
         } else if (!shieldActive) {
-          // Bot eats player - game over (only if no shield)
-          handleGameOver();
+          // Bot eats player - game over (only if no shield and bot is larger)
+          if (bot.size > newPlayerSize) {
+            handleGameOver();
+          }
         }
       }
     });
