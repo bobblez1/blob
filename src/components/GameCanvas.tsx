@@ -61,10 +61,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   // Initialize game
   useEffect(() => {
     console.log('Initializing game with mode:', gameMode);
-    if (gameActive) {
-      generateBots();
-      generateFoods();
-    }
+    generateBots();
+    generateFoods();
     gameStartTime.current = Date.now();
     setTimeRemaining(GAME_CONSTANTS.TIME_ATTACK_DURATION);
     setPlayAreaRadius(Math.min(GAME_CONSTANTS.CANVAS_WIDTH, GAME_CONSTANTS.CANVAS_HEIGHT) / 2);
@@ -72,7 +70,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     // Hide controls after 3 seconds
     const timer = setTimeout(() => setShowControls(false), 3000);
     return () => clearTimeout(timer);
-  }, [gameMode, gameActive]);
+  }, [gameMode]);
 
   // Game mode specific timers
   useEffect(() => {
@@ -728,6 +726,14 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     };
   };
 
+  const handleStartGame = () => {
+    console.log('Starting game with mode:', gameMode);
+    // Generate bots and foods when starting the game
+    generateBots();
+    generateFoods();
+    startGame();
+  };
+
   return (
     <div className="relative w-full h-full flex flex-col max-w-sm mx-auto">
       {/* Game HUD */}
@@ -856,7 +862,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
                 <h2 className="text-xl font-bold mb-4">Ready to Play?</h2>
                 <p className="text-gray-300 mb-6 text-sm">Eat food to grow, eat smaller blobs for points!</p>
                 <button
-                  onClick={startGame}
+                  onClick={handleStartGame}
                   className="bg-green-500 hover:bg-green-600 px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2 mx-auto"
                 >
                   <Play size={18} />
