@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useGame } from '../context/GameContext';
-import { GAME_CONSTANTS, FOOD_COLORS, UPGRADE_IDS, CHALLENGE_TYPES } from '../constants/gameConstants';
+import { GAME_CONSTANTS, FOOD_COLORS, UPGRADE_IDS, CHALLENGE_TYPES, TEAM_COLORS } from '../constants/gameConstants';
 import { PlayerBlob, BotBlob, FoodBlob } from '../types/gameTypes';
 import { calculateDistance, getEvolutionStage, getEvolutionColor, isInViewport, clampToCanvas, generateUniqueId, vibrate, playSound } from '../utils/gameUtils';
 import { createBot, calculateBotAction } from '../utils/botAI';
