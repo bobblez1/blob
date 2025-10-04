@@ -60,6 +60,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
 
   // Initialize game
   useEffect(() => {
+    console.log('Initializing game with mode:', gameMode);
     generateBots();
     generateFoods();
     gameStartTime.current = Date.now();
@@ -168,11 +169,13 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     const newBots: BotBlob[] = [];
     
     const botCount = gameMode === 'battleRoyale' ? 20 : gameMode === 'team' ? 10 : 15;
+    console.log('Generating', botCount, 'bots for mode:', gameMode);
     
     for (let i = 0; i < botCount; i++) {
       const team = gameMode === 'team' ? (i % 2 === 0 ? 'red' : 'blue') : undefined;
       newBots.push(createBot(gameMode, team));
     }
+    console.log('Generated bots:', newBots.length);
     setBots(newBots);
   };
 
@@ -192,6 +195,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         color: foodColor,
       });
     }
+    console.log('Generated foods:', newFoods.length);
     setFoods(newFoods);
   };
 
@@ -314,7 +318,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         gameMode, 
         selectedTeam, 
         timeRemaining, 
-        shieldActive
+        shieldActive,
+        playAreaRadius
       );
       
       // Battle Royale: damage bots outside play area
@@ -340,7 +345,9 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       currentBots.forEach(otherBot => {
         if (bot.id !== otherBot.id && !botsToRemove.has(otherBot.id)) {
           const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
-          if (distance < bot.size / 2 + otherBot.size / 2 && bot.size > otherBot.size) {
+          // In team mode, bots can only eat bots from different teams
+          const canEat = gameMode === 'team' ? bot.team !== otherBot.team : true;
+          if (canEat && distance < bot.size / 2 + otherBot.size / 2 && bot.size > otherBot.size) {
             botGrowth += otherBot.size * GAME_CONSTANTS.BOT_GROWTH_MULTIPLIER;
             botsToRemove.add(otherBot.id);
           }
@@ -395,7 +402,11 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
       const distance = calculateDistance(player.x, player.y, bot.x, bot.y);
       
       if (distance < newPlayerSize / 2 + bot.size / 2) {
-        if (newPlayerSize > bot.size || hasInstantKill) {
+        // In team mode, player can only eat bots from different teams
+        const canEatBot = gameMode === 'team' ? selectedTeam !== bot.team : true;
+        const canBotEatPlayer = gameMode === 'team' ? selectedTeam !== bot.team : true;
+        
+        if (canEatBot && (newPlayerSize > bot.size || hasInstantKill)) {
           // Player eats bot - gain points and growth
           const basePoints = Math.floor(bot.size / 2);
           const multiplier = upgrades.find(u => u.id === UPGRADE_IDS.POINT_MULTIPLIER && u.owned) ? 2 : 1;
@@ -420,7 +431,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
             const team = gameMode === 'team' ? (Math.random() > 0.5 ? 'red' : 'blue') : undefined;
             currentBots.push(createBot(gameMode, team));
           }
-        } else if (!shieldActive) {
+        } else if (canBotEatPlayer && !shieldActive) {
           // Bot eats player - game over (only if no shield and bot is larger)
           if (bot.size > newPlayerSize) {
             playSound('death', settings.soundEnabled);
@@ -611,7 +622,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     
     // Team mode: use team colors
     if (gameMode === 'team') {
-      playerColor = selectedTeam === 'red' ? '#EF4444' : '#3B82F6';
+      playerColor = selectedTeam === 'red' ? TEAM_COLORS.red : TEAM_COLORS.blue;
     }
     
     ctx.fillStyle = playerColor;

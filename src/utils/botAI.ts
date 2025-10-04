@@ -37,7 +37,8 @@ export const calculateBotAction = (
   gameMode: string,
   selectedTeam: 'red' | 'blue',
   timeRemaining?: number,
-  shieldActive?: boolean
+  shieldActive?: boolean,
+  playAreaRadius?: number
 ): BotAction => {
   const now = Date.now();
   
@@ -57,42 +58,69 @@ export const calculateBotAction = (
   let targetY = bot.y;
   let foundTarget = false;
   
-  // Find threats (larger entities to avoid)
-  const threats: Array<{ x: number; y: number; size: number; distance: number }> = [];
-  
-  // Check player as threat
-  if (player.size > bot.size * 1.2 && !shieldActive) {
-    const playerDistance = calculateDistance(bot.x, bot.y, player.x, player.y);
-    if (playerDistance < GAME_CONSTANTS.BOT_AVOID_RANGE) {
-      threats.push({ x: player.x, y: player.y, size: player.size, distance: playerDistance });
+  // Battle Royale: Prioritize staying in safe zone (HIGHEST PRIORITY)
+  if (gameMode === 'battleRoyale' && playAreaRadius) {
+    const centerX = GAME_CONSTANTS.CANVAS_WIDTH / 2;
+    const centerY = GAME_CONSTANTS.CANVAS_HEIGHT / 2;
+    const distanceFromCenter = calculateDistance(bot.x, bot.y, centerX, centerY);
+    
+    // If bot is outside safe zone or too close to edge, move towards center
+    const safeBuffer = 50; // Buffer to keep bots well inside the safe zone
+    if (distanceFromCenter > playAreaRadius - safeBuffer) {
+      const dx = centerX - bot.x;
+      const dy = centerY - bot.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance > 0) {
+        // Move towards center with high priority
+        const urgency = Math.min(2, distanceFromCenter / playAreaRadius);
+        targetX = bot.x + (dx / distance) * botBaseSpeed * urgency * 2;
+        targetY = bot.y + (dy / distance) * botBaseSpeed * urgency * 2;
+        foundTarget = true;
+      }
     }
   }
   
-  // Check other bots as threats
-  otherBots.forEach(otherBot => {
-    if (otherBot.id !== bot.id && otherBot.size > bot.size * 1.2) {
-      const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
-      if (distance < GAME_CONSTANTS.BOT_AVOID_RANGE) {
-        threats.push({ x: otherBot.x, y: otherBot.y, size: otherBot.size, distance });
+  // Find threats (larger entities to avoid)
+  if (!foundTarget) {
+    const threats: Array<{ x: number; y: number; size: number; distance: number }> = [];
+  
+    // Check player as threat (only if different teams in team mode)
+    const playerIsThreat = gameMode === 'team' ? bot.team !== selectedTeam : true;
+    if (playerIsThreat && player.size > bot.size * 1.2 && !shieldActive) {
+      const playerDistance = calculateDistance(bot.x, bot.y, player.x, player.y);
+      if (playerDistance < GAME_CONSTANTS.BOT_AVOID_RANGE) {
+        threats.push({ x: player.x, y: player.y, size: player.size, distance: playerDistance });
       }
     }
-  });
   
-  // Avoid threats (highest priority)
-  if (threats.length > 0) {
-    const nearestThreat = threats.reduce((nearest, threat) => 
-      threat.distance < nearest.distance ? threat : nearest
-    );
+    // Check other bots as threats (only if different teams in team mode)
+    otherBots.forEach(otherBot => {
+      const botIsThreat = gameMode === 'team' ? bot.team !== otherBot.team : true;
+      if (otherBot.id !== bot.id && botIsThreat && otherBot.size > bot.size * 1.2) {
+        const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
+        if (distance < GAME_CONSTANTS.BOT_AVOID_RANGE) {
+          threats.push({ x: otherBot.x, y: otherBot.y, size: otherBot.size, distance });
+        }
+      }
+    });
+  
+    // Avoid threats (high priority)
+    if (threats.length > 0) {
+      const nearestThreat = threats.reduce((nearest, threat) => 
+        threat.distance < nearest.distance ? threat : nearest
+      );
     
-    const dx = bot.x - nearestThreat.x;
-    const dy = bot.y - nearestThreat.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
+      const dx = bot.x - nearestThreat.x;
+      const dy = bot.y - nearestThreat.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
     
-    if (distance > 0) {
-      const avoidanceStrength = Math.min(2, nearestThreat.size / bot.size);
-      targetX = bot.x + (dx / distance) * botBaseSpeed * avoidanceStrength;
-      targetY = bot.y + (dy / distance) * botBaseSpeed * avoidanceStrength;
-      foundTarget = true;
+      if (distance > 0) {
+        const avoidanceStrength = Math.min(2, nearestThreat.size / bot.size);
+        targetX = bot.x + (dx / distance) * botBaseSpeed * avoidanceStrength;
+        targetY = bot.y + (dy / distance) * botBaseSpeed * avoidanceStrength;
+        foundTarget = true;
+      }
     }
   }
   
@@ -140,7 +168,8 @@ export const calculateBotAction = (
     const prey: Array<{ x: number; y: number; size: number; distance: number }> = [];
     
     otherBots.forEach(otherBot => {
-      if (otherBot.id !== bot.id && otherBot.size < bot.size * 0.8) {
+      const canEat = gameMode === 'team' ? bot.team !== otherBot.team : true;
+      if (otherBot.id !== bot.id && canEat && otherBot.size < bot.size * 0.8) {
         const distance = calculateDistance(bot.x, bot.y, otherBot.x, otherBot.y);
         if (distance < GAME_CONSTANTS.BOT_CHASE_RANGE) {
           prey.push({ x: otherBot.x, y: otherBot.y, size: otherBot.size, distance });
@@ -149,7 +178,8 @@ export const calculateBotAction = (
     });
     
     // Consider player as prey if smaller
-    if (player.size < bot.size * 0.8 && !shieldActive) {
+    const canEatPlayer = gameMode === 'team' ? bot.team !== selectedTeam : true;
+    if (canEatPlayer && player.size < bot.size * 0.8 && !shieldActive) {
       const playerDistance = calculateDistance(bot.x, bot.y, player.x, player.y);
       if (playerDistance < GAME_CONSTANTS.BOT_CHASE_RANGE) {
         prey.push({ x: player.x, y: player.y, size: player.size, distance: playerDistance });
