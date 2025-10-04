@@ -359,9 +359,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   };
 
   const startGame = () => {
+    console.log('Starting game with mode:', gameMode);
     setGameActive(true);
     setCurrentPoints(0);
     setPlayerSize(20);
+    console.log('Game started - gameActive:', true, 'playerSize:', 20);
   };
 
   const endGame = (finalScore: number) => {
