@@ -61,8 +61,10 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   // Initialize game
   useEffect(() => {
     console.log('Initializing game with mode:', gameMode);
-    generateBots();
-    generateFoods();
+    if (gameActive) {
+      generateBots();
+      generateFoods();
+    }
     gameStartTime.current = Date.now();
     setTimeRemaining(GAME_CONSTANTS.TIME_ATTACK_DURATION);
     setPlayAreaRadius(Math.min(GAME_CONSTANTS.CANVAS_WIDTH, GAME_CONSTANTS.CANVAS_HEIGHT) / 2);
@@ -70,7 +72,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     // Hide controls after 3 seconds
     const timer = setTimeout(() => setShowControls(false), 3000);
     return () => clearTimeout(timer);
-  }, [gameMode]);
+  }, [gameMode, gameActive]);
 
   // Game mode specific timers
   useEffect(() => {
