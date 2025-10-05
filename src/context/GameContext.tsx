@@ -473,6 +473,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       challenges,
       activePowerUps,
       settings,
+      dailyDeal,
       selectedCosmetic,
       currentPoints,
       gameActive,
