@@ -56,6 +56,7 @@ interface GameContextType {
   challenges: Challenge[];
   activePowerUps: ActivePowerUp[];
   settings: GameSettings;
+  selectedCosmetic: string | null;
   currentPoints: number;
   gameActive: boolean;
   playerSize: number;
@@ -64,6 +65,8 @@ interface GameContextType {
   updateStats: (points: number) => void;
   growPlayer: (amount: number) => void;
   purchaseUpgrade: (upgradeId: string) => void;
+  purchaseWithStars: (upgradeId: string) => void;
+  openLootBox: (boxType: string) => void;
   startGame: (mode?: 'classic' | 'timeAttack' | 'battleRoyale' | 'team') => void;
   endGame: (finalScore: number) => void;
   useLife: () => boolean;
@@ -75,6 +78,7 @@ interface GameContextType {
   refillLives: () => void;
   setGameMode: (mode: 'classic' | 'timeAttack' | 'battleRoyale' | 'team') => void;
   setSelectedTeam: (team: 'red' | 'blue') => void;
+  setSelectedCosmetic: (cosmeticId: string | null) => void;
   updateSettings: (settings: Partial<GameSettings>) => void;
 }
 
@@ -452,11 +456,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       challenges,
       activePowerUps,
       settings,
-      dailyDeal,
+      selectedCosmetic,
       currentPoints,
       gameActive,
       playerSize,
-      selectedCosmetic,
       updateStats,
       purchaseUpgrade,
       purchaseWithStars,
