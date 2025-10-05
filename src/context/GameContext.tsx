@@ -56,6 +56,7 @@ interface GameContextType {
   challenges: Challenge[];
   activePowerUps: ActivePowerUp[];
   settings: GameSettings;
+  dailyDeal: DailyDeal | null;
   selectedCosmetic: string | null;
   currentPoints: number;
   gameActive: boolean;
@@ -263,6 +264,21 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const today = new Date().toDateString();
     
+    // Generate daily deal if none exists or if it's a new day
+    if (!dailyDeal || dailyDeal.expiresAt !== today) {
+      const availableUpgrades = upgrades.filter(u => u.price > 50); // Only discount expensive items
+      if (availableUpgrades.length > 0) {
+        const randomUpgrade = availableUpgrades[Math.floor(Math.random() * availableUpgrades.length)];
+        const discountPercent = 20 + Math.floor(Math.random() * 31); // 20-50% discount
+        
+        setDailyDeal({
+          upgradeId: randomUpgrade.id,
+          discountPercent,
+          expiresAt: today,
+        });
+      }
+    }
+    
     // Check if we need to reset daily lives
     if (stats.lastLifeReset !== today) {
       const updatedStats = {
@@ -293,7 +309,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       
       setStats(updatedStats);
     }
-  }, [stats, setStats]);
+  }, [stats, setStats, dailyDeal, setDailyDeal, upgrades]);
 
   // Clean up expired power-ups
   useEffect(() => {
