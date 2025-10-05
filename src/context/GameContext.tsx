@@ -252,6 +252,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [challenges, setChallenges] = useLocalStorage<Challenge[]>('agarGameChallenges', INITIAL_CHALLENGES);
   const [settings, setSettings] = useLocalStorage<GameSettings>('agarGameSettings', INITIAL_SETTINGS);
   const [activePowerUps, setActivePowerUps] = useState<ActivePowerUp[]>([]);
+  const [selectedCosmetic, setSelectedCosmetic] = useLocalStorage<string | null>('agarSelectedCosmetic', null);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [gameActive, setGameActive] = useState(false);
   const [playerSize, setPlayerSize] = useState(20);
