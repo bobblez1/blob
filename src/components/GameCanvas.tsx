@@ -409,9 +409,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
         if (canEatBot && (newPlayerSize > bot.size || hasInstantKill)) {
           // Player eats bot - gain points and growth
           const basePoints = Math.floor(bot.size / 2);
-          const multiplier = upgrades.find(u => u.id === UPGRADE_IDS.POINT_MULTIPLIER && u.owned) ? 2 : 1;
-          const doubleMultiplier = doublePoints ? 2 : 1;
-          const totalPoints = basePoints * multiplier * doubleMultiplier;
+          const totalPoints = basePoints * baseMultiplier * powerUpMultiplier;
           
           updateStats(totalPoints);
           updateChallengeProgress(CHALLENGE_TYPES.EAT_BLOBS, 1);
@@ -492,9 +490,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   };
 
   const getPlayerColor = () => {
-    if (!selectedCosmetic) return '#3B82F6';
-    
-    const cosmetic = upgrades.find(u => u.id === selectedCosmetic && u.owned);
+    const cosmetic = upgrades.find(u => u.category === 'cosmetic' && u.owned);
     return cosmetic?.color || '#3B82F6';
   };
 
