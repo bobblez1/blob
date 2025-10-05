@@ -380,6 +380,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const purchaseWithStars = (upgradeId: string) => {
+    console.log('Telegram Stars integration not yet implemented for upgrade:', upgradeId);
+  };
+
+  const openLootBox = (boxType: string) => {
+    console.log('Loot box system not yet implemented for box type:', boxType);
+  };
+
   const startGame = () => {
     console.log('Starting game with mode:', gameMode);
     setGameActive(true);
