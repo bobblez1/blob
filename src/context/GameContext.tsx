@@ -260,6 +260,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [gameMode, setGameMode] = useState<'classic' | 'timeAttack' | 'battleRoyale' | 'team'>('classic');
   const [selectedTeam, setSelectedTeam] = useState<'red' | 'blue'>('red');
 
+  const [dailyDeal, setDailyDeal] = useLocalStorage<DailyDeal | null>('agarDailyDeal', null);
   // Handle daily resets and login streaks
   useEffect(() => {
     const today = new Date().toDateString();
