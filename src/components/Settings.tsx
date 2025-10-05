@@ -184,6 +184,49 @@ function Settings({ onBack }: SettingsProps) {
               )}
             </div>
           </div>
+          
+          {/* Cosmetic Selection */}
+          <div className="space-y-3">
+            <h4 className="font-semibold flex items-center gap-2">
+              <Palette size={16} className="text-pink-400" />
+              Active Cosmetic
+            </h4>
+            
+            <div className="space-y-2">
+              <button
+                onClick={() => setSelectedCosmetic(null)}
+                className={`w-full p-2 rounded-lg border text-left transition-colors ${
+                  selectedCosmetic === null
+                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-200'
+                    : 'bg-gray-700/50 border-gray-600/50 text-gray-300 hover:bg-gray-600/50'
+                }`}
+              >
+                Default Blue Blob
+              </button>
+              
+              {upgrades
+                .filter(u => u.category === 'cosmetic' && u.owned)
+                .map(cosmetic => (
+                  <button
+                    key={cosmetic.id}
+                    onClick={() => setSelectedCosmetic(cosmetic.id)}
+                    className={`w-full p-2 rounded-lg border text-left transition-colors ${
+                      selectedCosmetic === cosmetic.id
+                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-200'
+                        : 'bg-gray-700/50 border-gray-600/50 text-gray-300 hover:bg-gray-600/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-4 h-4 rounded-full border border-gray-400"
+                        style={{ backgroundColor: cosmetic.color }}
+                      />
+                      {cosmetic.name}
+                    </div>
+                  </button>
+                ))}
+            </div>
+          </div>
         </div>
 
         {/* Lives System */}

@@ -197,6 +197,51 @@ function Store({ onBack }: StoreProps) {
           </div>
         </div>
       </div>
+      
+      {/* Loot Box Results Modal */}
+      {showLootModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full">
+            <h2 className="text-xl font-bold text-center mb-4 text-yellow-400">
+              🎉 Loot Box Opened! 🎉
+            </h2>
+            
+            <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
+              {lootResults.map((reward, index) => (
+                <div key={index} className={`p-2 rounded-lg border ${
+                  reward.rarity === 'legendary' ? 'bg-yellow-500/20 border-yellow-500/50' :
+                  reward.rarity === 'epic' ? 'bg-purple-500/20 border-purple-500/50' :
+                  reward.rarity === 'rare' ? 'bg-blue-500/20 border-blue-500/50' :
+                  'bg-gray-500/20 border-gray-500/50'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">
+                      {reward.type === 'points' ? `${reward.value} Points` :
+                       reward.type === 'stars' ? `${reward.value} Stars` :
+                       reward.type === 'powerup' ? 'Power-up' : 'Item'}
+                    </span>
+                    <span className={`text-xs font-bold uppercase ${
+                      reward.rarity === 'legendary' ? 'text-yellow-400' :
+                      reward.rarity === 'epic' ? 'text-purple-400' :
+                      reward.rarity === 'rare' ? 'text-blue-400' :
+                      'text-gray-400'
+                    }`}>
+                      {reward.rarity}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <button
+              onClick={() => setShowLootModal(false)}
+              className="w-full bg-blue-500 hover:bg-blue-600 py-3 rounded-lg font-semibold transition-colors"
+            >
+              Awesome!
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -492,7 +492,9 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
   };
 
   const getPlayerColor = () => {
-    const cosmetic = upgrades.find(u => u.category === 'cosmetic' && u.owned);
+    if (!selectedCosmetic) return '#3B82F6';
+    
+    const cosmetic = upgrades.find(u => u.id === selectedCosmetic && u.owned);
     return cosmetic?.color || '#3B82F6';
   };
 

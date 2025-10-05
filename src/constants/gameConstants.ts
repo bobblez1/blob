@@ -68,16 +68,42 @@ export const BOT_NAMES = [
 ] as const;
 
 export const UPGRADE_IDS = {
-  SPEED_BOOST: 'speed_boost',
-  POINT_MULTIPLIER: 'point_multiplier',
+  // Tiered Permanent Upgrades
+  SPEED_BOOST_1: 'speed_boost_1',
+  SPEED_BOOST_2: 'speed_boost_2',
+  SPEED_BOOST_3: 'speed_boost_3',
+  POINT_MULTIPLIER_1: 'point_multiplier_1',
+  POINT_MULTIPLIER_2: 'point_multiplier_2',
+  POINT_MULTIPLIER_3: 'point_multiplier_3',
   INSTANT_KILL: 'instant_kill',
   AUTO_REVIVE: 'auto_revive',
+  
+  // Basic Cosmetics (Points)
   RED_SKIN: 'red_skin',
   GOLD_SKIN: 'gold_skin',
+  
+  // Premium Cosmetics (Stars)
   RAINBOW_SKIN: 'rainbow_skin',
+  DIAMOND_SKIN: 'diamond_skin',
+  FIRE_SKIN: 'fire_skin',
+  ICE_SKIN: 'ice_skin',
+  GALAXY_SKIN: 'galaxy_skin',
+  
+  // Power-ups
   SHIELD: 'shield',
   DOUBLE_POINTS: 'double_points',
+  MEGA_GROWTH: 'mega_growth',
+  INVINCIBILITY: 'invincibility',
+  
+  // Utility
   EXTRA_LIVES: 'extra_lives',
+  REVIVE_TOKEN: 'revive_token',
+  
+  // Bundles & Loot
+  POWER_BUNDLE_SMALL: 'power_bundle_small',
+  POWER_BUNDLE_LARGE: 'power_bundle_large',
+  MYSTERY_CRATE: 'mystery_crate',
+  PREMIUM_CRATE: 'premium_crate',
 } as const;
 
 export const CHALLENGE_TYPES = {

@@ -39,4 +39,16 @@ export interface SpatialGrid {
   [key: string]: GameBlob[];
 }
 
+interface DailyDeal {
+  upgradeId: string;
+  discountPercent: number;
+  expiresAt: string;
+}
+
+interface LootReward {
+  type: 'points' | 'stars' | 'powerup' | 'cosmetic';
+  value: number | string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
 export type EvolutionStage = 'basic' | 'common' | 'rare' | 'epic' | 'legendary';
