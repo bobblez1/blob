@@ -393,7 +393,8 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
 
     // Check collisions with bots
     const hasInstantKill = upgrades.find(u => u.id === UPGRADE_IDS.INSTANT_KILL && u.owned);
-    const doublePoints = activePowerUps.find(p => p.id === UPGRADE_IDS.DOUBLE_POINTS);
+    const baseMultiplier = upgrades.find(u => u.id === UPGRADE_IDS.POINT_MULTIPLIER_1 && u.owned) ? 2 : 1;
+    const powerUpMultiplier = activePowerUps.find(p => p.id === UPGRADE_IDS.DOUBLE_POINTS) ? 2 : 1;
     
     const botsToRemoveFromPlayer = new Set<string>();
     currentBots.forEach(bot => {

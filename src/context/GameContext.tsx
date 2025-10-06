@@ -50,6 +50,18 @@ interface ActivePowerUp {
   expiresAt: number;
 }
 
+interface DailyDeal {
+  upgradeId: string;
+  discountPercent: number;
+  expiresAt: string;
+}
+
+interface LootReward {
+  type: 'points' | 'stars' | 'powerup' | 'cosmetic';
+  value: number | string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
 interface GameContextType {
   stats: GameStats;
   upgrades: Upgrade[];
@@ -63,11 +75,12 @@ interface GameContextType {
   playerSize: number;
   gameMode: 'classic' | 'timeAttack' | 'battleRoyale' | 'team';
   selectedTeam: 'red' | 'blue';
+  telegramStars: number;
   updateStats: (points: number) => void;
   growPlayer: (amount: number) => void;
   purchaseUpgrade: (upgradeId: string) => void;
   purchaseWithStars: (upgradeId: string) => void;
-  openLootBox: (boxType: string) => void;
+  openLootBox: (boxType: string) => LootReward[];
   startGame: (mode?: 'classic' | 'timeAttack' | 'battleRoyale' | 'team') => void;
   endGame: (finalScore: number) => void;
   useLife: () => boolean;
@@ -105,8 +118,8 @@ const INITIAL_SETTINGS: GameSettings = {
 const INITIAL_UPGRADES: Upgrade[] = [
   // Permanent Upgrades
   {
-    id: UPGRADE_IDS.SPEED_BOOST,
-    name: 'Speed Boost',
+    id: UPGRADE_IDS.SPEED_BOOST_1,
+    name: 'Speed Boost I',
     description: 'Increase movement speed by 25%',
     price: 100,
     owned: false,
@@ -114,8 +127,8 @@ const INITIAL_UPGRADES: Upgrade[] = [
     category: 'permanent',
   },
   {
-    id: UPGRADE_IDS.POINT_MULTIPLIER,
-    name: '2x Point Multiplier',
+    id: UPGRADE_IDS.POINT_MULTIPLIER_1,
+    name: '2x Point Multiplier I',
     description: 'Double points from eating blobs',
     price: 150,
     owned: false,
@@ -252,21 +265,22 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [upgrades, setUpgrades] = useLocalStorage<Upgrade[]>('agarGameUpgrades', INITIAL_UPGRADES);
   const [challenges, setChallenges] = useLocalStorage<Challenge[]>('agarGameChallenges', INITIAL_CHALLENGES);
   const [settings, setSettings] = useLocalStorage<GameSettings>('agarGameSettings', INITIAL_SETTINGS);
+  const [dailyDeal, setDailyDeal] = useLocalStorage<DailyDeal | null>('agarDailyDeal', null);
   const [activePowerUps, setActivePowerUps] = useState<ActivePowerUp[]>([]);
   const [selectedCosmetic, setSelectedCosmetic] = useLocalStorage<string | null>('agarSelectedCosmetic', null);
+  const [telegramStars, setTelegramStars] = useLocalStorage<number>('agarTelegramStars', 0);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [gameActive, setGameActive] = useState(false);
   const [playerSize, setPlayerSize] = useState(20);
   const [gameMode, setGameMode] = useState<'classic' | 'timeAttack' | 'battleRoyale' | 'team'>('classic');
   const [selectedTeam, setSelectedTeam] = useState<'red' | 'blue'>('red');
 
-  const [dailyDeal, setDailyDeal] = useLocalStorage<DailyDeal | null>('agarDailyDeal', null);
   // Handle daily resets and login streaks
   useEffect(() => {
     const today = new Date().toDateString();
     
     // Generate daily deal if none exists or if it's a new day
-    if (!dailyDeal || dailyDeal.expiresAt !== today) {
+    if (!dailyDeal || new Date(dailyDeal.expiresAt).toDateString() !== today) {
       const availableUpgrades = upgrades.filter(u => u.price > 50); // Only discount expensive items
       if (availableUpgrades.length > 0) {
         const randomUpgrade = availableUpgrades[Math.floor(Math.random() * availableUpgrades.length)];
@@ -357,6 +371,105 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const purchaseWithStars = (upgradeId: string) => {
+    const upgrade = upgrades.find(u => u.id === upgradeId);
+    if (!upgrade) return;
+
+    // Calculate star cost (for demo purposes, use price / 10)
+    const starCost = Math.ceil(upgrade.price / 10);
+    
+    if (telegramStars < starCost) {
+      console.log('Not enough Telegram Stars');
+      return;
+    }
+
+    // Deduct stars
+    setTelegramStars(prev => prev - starCost);
+
+    // Apply upgrade effect
+    if (upgrade.category === 'powerup') {
+      activatePowerUp(upgradeId);
+    } else if (upgrade.category === 'utility') {
+      if (upgradeId === UPGRADE_IDS.EXTRA_LIVES) {
+        refillLives();
+      }
+    } else {
+      setUpgrades(prev => 
+        prev.map(u => 
+          u.id === upgradeId ? { ...u, owned: true } : u
+        )
+      );
+    }
+  };
+
+  const openLootBox = (boxType: string): LootReward[] => {
+    const boxCosts = {
+      'mystery_crate': 5,
+      'premium_crate': 15,
+    };
+
+    const cost = boxCosts[boxType as keyof typeof boxCosts] || 5;
+    
+    if (telegramStars < cost) {
+      console.log('Not enough Telegram Stars for loot box');
+      return [];
+    }
+
+    // Deduct stars
+    setTelegramStars(prev => prev - cost);
+
+    // Generate rewards
+    const rewards: LootReward[] = [];
+    const rewardCount = boxType === 'premium_crate' ? 2 + Math.floor(Math.random() * 3) : 1 + Math.floor(Math.random() * 3);
+
+    for (let i = 0; i < rewardCount; i++) {
+      const rand = Math.random();
+      let rarity: 'common' | 'rare' | 'epic' | 'legendary';
+      
+      if (boxType === 'premium_crate') {
+        if (rand < 0.1) rarity = 'legendary';
+        else if (rand < 0.3) rarity = 'epic';
+        else if (rand < 0.6) rarity = 'rare';
+        else rarity = 'common';
+      } else {
+        if (rand < 0.02) rarity = 'legendary';
+        else if (rand < 0.1) rarity = 'epic';
+        else if (rand < 0.3) rarity = 'rare';
+        else rarity = 'common';
+      }
+
+      const rewardType = Math.random();
+      if (rewardType < 0.5) {
+        // Points reward
+        const pointValues = { common: 25, rare: 75, epic: 150, legendary: 300 };
+        const points = pointValues[rarity];
+        rewards.push({ type: 'points', value: points, rarity });
+        
+        // Apply points immediately
+        setStats(prev => ({ ...prev, totalPoints: prev.totalPoints + points }));
+      } else if (rewardType < 0.8) {
+        // Stars reward
+        const starValues = { common: 1, rare: 3, epic: 7, legendary: 15 };
+        const stars = starValues[rarity];
+        rewards.push({ type: 'stars', value: stars, rarity });
+        
+        // Apply stars immediately
+        setTelegramStars(prev => prev + stars);
+      } else {
+        // Power-up reward
+        const powerUps = [UPGRADE_IDS.SHIELD, UPGRADE_IDS.DOUBLE_POINTS];
+        const powerUpId = powerUps[Math.floor(Math.random() * powerUps.length)];
+        const powerUpName = upgrades.find(u => u.id === powerUpId)?.name || 'Power-up';
+        rewards.push({ type: 'powerup', value: powerUpName, rarity });
+        
+        // Activate power-up immediately
+        activatePowerUp(powerUpId);
+      }
+    }
+
+    return rewards;
+  };
+
   const activatePowerUp = (powerUpId: string) => {
     const upgrade = upgrades.find(u => u.id === powerUpId);
     if (!upgrade || !upgrade.effectDuration) return;
@@ -380,14 +493,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-  const purchaseWithStars = (upgradeId: string) => {
-    console.log('Telegram Stars integration not yet implemented for upgrade:', upgradeId);
-  };
-
-  const openLootBox = (boxType: string) => {
-    console.log('Loot box system not yet implemented for box type:', boxType);
-  };
-
   const startGame = () => {
     console.log('Starting game with mode:', gameMode);
     setGameActive(true);
@@ -398,8 +503,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const endGame = (finalScore: number) => {
     setGameActive(false);
-    const multiplier = upgrades.find(u => u.id === UPGRADE_IDS.POINT_MULTIPLIER && u.owned) ? 2 : 1;
-    const totalScore = finalScore * multiplier;
+    
+    // Calculate multipliers
+    const baseMultiplier = upgrades.find(u => u.id === UPGRADE_IDS.POINT_MULTIPLIER_1 && u.owned) ? 2 : 1;
+    const powerUpMultiplier = activePowerUps.find(p => p.id === UPGRADE_IDS.DOUBLE_POINTS) ? 2 : 1;
+    const totalScore = finalScore * baseMultiplier * powerUpMultiplier;
     
     setStats(prev => ({
       ...prev,
@@ -469,6 +577,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setChallenges(INITIAL_CHALLENGES);
     setSettings(INITIAL_SETTINGS);
     setActivePowerUps([]);
+    setTelegramStars(0);
+    setDailyDeal(null);
   };
 
   const updateSettings = (newSettings: Partial<GameSettings>) => {
@@ -487,6 +597,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       currentPoints,
       gameActive,
       playerSize,
+      gameMode,
+      selectedTeam,
+      telegramStars,
       updateStats,
       purchaseUpgrade,
       purchaseWithStars,
@@ -500,9 +613,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       claimChallengeReward,
       activatePowerUp,
       refillLives,
-      gameMode,
       setGameMode,
-      selectedTeam,
       setSelectedTeam,
       setSelectedCosmetic,
       growPlayer,

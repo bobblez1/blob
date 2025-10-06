@@ -2,14 +2,30 @@ import React, { useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { Star, Zap, FileX2 as X2, Skull, RotateCcw, ShoppingCart, Coins, ArrowLeft, CheckCircle, Shield, Heart, Palette } from 'lucide-react';
 
+interface LootReward {
+  type: 'points' | 'stars' | 'powerup' | 'cosmetic';
+  value: number | string;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+}
+
 interface StoreProps {
   onBack: () => void;
 }
 
 function Store({ onBack }: StoreProps) {
-  const { stats, upgrades, purchaseUpgrade } = useGame();
+  const { stats, upgrades, purchaseUpgrade, openLootBox, telegramStars } = useGame();
   const [purchaseAnimation, setPurchaseAnimation] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'permanent' | 'cosmetic' | 'powerup' | 'utility'>('permanent');
+  const [showLootModal, setShowLootModal] = useState(false);
+  const [lootResults, setLootResults] = useState<LootReward[]>([]);
+
+  const handleLootBoxPurchase = (boxType: string) => {
+    const results = openLootBox(boxType);
+    if (results.length > 0) {
+      setLootResults(results);
+      setShowLootModal(true);
+    }
+  };
 
   const handlePurchase = (upgradeId: string) => {
     const upgrade = upgrades.find(u => u.id === upgradeId);

@@ -22,7 +22,7 @@ interface SettingsProps {
 }
 
 function Settings({ onBack }: SettingsProps) {
-  const { stats, settings, updateSettings, resetAllData } = useGame();
+  const { stats, settings, updateSettings, resetAllData, upgrades, selectedCosmetic, setSelectedCosmetic } = useGame();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const handleResetData = () => {
