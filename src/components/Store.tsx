@@ -195,6 +195,97 @@ function Store({ onBack }: StoreProps) {
                         </button>
                       )}
                     </div>
+        {/* Loot Boxes Section */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <div className="text-2xl">🎁</div>
+            Mystery Crates
+          </h2>
+          
+          <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 p-3 rounded-xl mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Star size={16} className="text-blue-400" />
+              <span className="font-semibold text-blue-400">Telegram Stars Required</span>
+            </div>
+            <p className="text-sm text-gray-300">
+              Open mystery crates to get random rewards including points, stars, and power-ups!
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 gap-4">
+            {/* Mystery Crate */}
+            <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 p-4 rounded-xl border border-blue-500/30">
+              <div className="flex items-start gap-3">
+                <div className="text-3xl">📦</div>
+                
+                <div className="flex-1">
+                  <h3 className="font-bold mb-1 text-blue-200">Mystery Crate</h3>
+                  <p className="text-gray-300 text-sm mb-3">
+                    Contains 1-3 random rewards with a chance for rare items!
+                  </p>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Star size={14} className="text-blue-400" />
+                      <span className="font-semibold text-sm text-blue-200">5 Telegram Stars</span>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleLootBoxPurchase('mystery_crate')}
+                      disabled={telegramStars < 5}
+                      className="px-4 py-1 rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 text-sm bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      Open Crate
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Premium Crate */}
+            <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-4 rounded-xl border border-purple-500/30">
+              <div className="flex items-start gap-3">
+                <div className="text-3xl">🎁</div>
+                
+                <div className="flex-1">
+                  <h3 className="font-bold mb-1 text-purple-200">Premium Crate</h3>
+                  <p className="text-gray-300 text-sm mb-3">
+                    Contains 2-5 rewards with much higher chances for epic and legendary items!
+                  </p>
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Star size={14} className="text-purple-400" />
+                      <span className="font-semibold text-sm text-purple-200">15 Telegram Stars</span>
+                    </div>
+                    
+                    <button
+                      onClick={() => handleLootBoxPurchase('premium_crate')}
+                      disabled={telegramStars < 15}
+                      className="px-4 py-1 rounded-lg font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 text-sm bg-purple-500 hover:bg-purple-600 text-white"
+                    >
+                      Open Crate
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Current Stars Display */}
+          <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700/50">
+            <div className="flex items-center justify-center gap-2">
+              <Star size={20} className="text-yellow-400" />
+              <span className="text-xl font-bold">{telegramStars}</span>
+              <span className="text-gray-400">Telegram Stars Available</span>
+            </div>
+            {telegramStars === 0 && (
+              <p className="text-center text-sm text-gray-400 mt-2">
+                💡 Earn stars by opening loot boxes or through special events!
+              </p>
+            )}
+          </div>
+        </div>
                   </div>
                 </div>
               </div>
@@ -204,6 +295,7 @@ function Store({ onBack }: StoreProps) {
           {/* How to Earn Points */}
           <div className="bg-gray-800/30 p-4 rounded-xl border border-gray-700/50">
             <h3 className="font-semibold mb-2">How to Earn Points</h3>
+            <li>• Open loot boxes for bonus points and stars</li>
             <ul className="text-sm text-gray-300 space-y-1">
               <li>• Eat other players/bots: +points based on size</li>
               <li>• Complete daily challenges for bonus rewards</li>
