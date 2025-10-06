@@ -69,9 +69,11 @@ export const BOT_NAMES = [
 
 export const UPGRADE_IDS = {
   // Tiered Permanent Upgrades
+  SPEED_BOOST: 'speed_boost_1',
   SPEED_BOOST_1: 'speed_boost_1',
   SPEED_BOOST_2: 'speed_boost_2',
   SPEED_BOOST_3: 'speed_boost_3',
+  POINT_MULTIPLIER: 'point_multiplier_1',
   POINT_MULTIPLIER_1: 'point_multiplier_1',
   POINT_MULTIPLIER_2: 'point_multiplier_2',
   POINT_MULTIPLIER_3: 'point_multiplier_3',
