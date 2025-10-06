@@ -78,7 +78,7 @@ interface GameContextType {
   telegramStars: number;
   updateStats: (points: number) => void;
   growPlayer: (amount: number) => void;
-  purchaseUpgrade: (upgradeId: string) => void;
+  purchaseUpgrade: (upgradeId: string, priceOverride?: number) => void;
   purchaseWithStars: (upgradeId: string) => void;
   openLootBox: (boxType: string) => LootReward[];
   startGame: (mode?: 'classic' | 'timeAttack' | 'battleRoyale' | 'team') => void;
@@ -344,9 +344,10 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     setPlayerSize(prev => Math.max(5, prev + amount));
   };
 
-  const purchaseUpgrade = (upgradeId: string) => {
+  const purchaseUpgrade = (upgradeId: string, priceOverride?: number) => {
     const upgrade = upgrades.find(u => u.id === upgradeId);
-    if (!upgrade || stats.totalPoints < upgrade.price) return;
+    const finalPrice = priceOverride ?? upgrade.price;
+    if (!upgrade || stats.totalPoints < finalPrice) return;
 
     if (upgrade.category === 'powerup') {
       // Activate temporary power-up
@@ -367,7 +368,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
     setStats(prev => ({
       ...prev,
-      totalPoints: prev.totalPoints - upgrade.price,
+      totalPoints: prev.totalPoints - finalPrice,
     }));
   };
 
