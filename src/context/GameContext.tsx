@@ -346,7 +346,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const purchaseUpgrade = (upgradeId: string, priceOverride?: number) => {
     const upgrade = upgrades.find(u => u.id === upgradeId);
-    const finalPrice = priceOverride ?? upgrade.price;
+    const finalPrice = priceOverride ?? upgrade?.price ?? 0;
     if (!upgrade || stats.totalPoints < finalPrice) return;
 
     if (upgrade.category === 'powerup') {
