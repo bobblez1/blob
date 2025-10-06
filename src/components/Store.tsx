@@ -39,6 +39,22 @@ function Store({ onBack }: StoreProps) {
     setTimeout(() => setPurchaseAnimation(null), 1000);
   };
 
+  const handleDailyDealPurchase = () => {
+    if (!dailyDeal) return;
+    
+    const dealUpgrade = upgrades.find(u => u.id === dailyDeal.upgradeId);
+    if (!dealUpgrade) return;
+    
+    const discountedPrice = Math.floor(dealUpgrade.price * (1 - dailyDeal.discountPercent / 100));
+    
+    if (stats.totalPoints < discountedPrice) return;
+    if (dealUpgrade.category === 'permanent' && dealUpgrade.owned) return;
+    
+    purchaseUpgrade(dailyDeal.upgradeId, discountedPrice);
+    setPurchaseAnimation(dailyDeal.upgradeId);
+    setTimeout(() => setPurchaseAnimation(null), 1000);
+  };
+
   const getUpgradeIcon = (type: string) => {
     switch (type) {
       case 'speed': return <Zap size={24} />;
