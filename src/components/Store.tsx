@@ -13,7 +13,7 @@ interface StoreProps {
 }
 
 function Store({ onBack }: StoreProps) {
-  const { stats, upgrades, purchaseUpgrade, openLootBox, telegramStars } = useGame();
+  const { stats, upgrades, purchaseUpgrade, openLootBox, telegramStars, dailyDeal } = useGame();
   const [purchaseAnimation, setPurchaseAnimation] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<'permanent' | 'cosmetic' | 'powerup' | 'utility'>('permanent');
   const [showLootModal, setShowLootModal] = useState(false);
@@ -36,6 +36,24 @@ function Store({ onBack }: StoreProps) {
     
     purchaseUpgrade(upgradeId);
     setPurchaseAnimation(upgradeId);
+    setTimeout(() => setPurchaseAnimation(null), 1000);
+  };
+
+  const handleDailyDealPurchase = () => {
+    if (!dailyDeal) return;
+    
+    const dealUpgrade = upgrades.find(u => u.id === dailyDeal.upgradeId);
+    if (!dealUpgrade) return;
+    
+    const discountedPrice = Math.floor(dealUpgrade.price * (1 - dailyDeal.discountPercent / 100));
+    
+    if (stats.totalPoints < discountedPrice) return;
+    
+    // For permanent upgrades, check if already owned
+    if (dealUpgrade.category === 'permanent' && dealUpgrade.owned) return;
+    
+    purchaseUpgrade(dailyDeal.upgradeId, discountedPrice);
+    setPurchaseAnimation(dailyDeal.upgradeId);
     setTimeout(() => setPurchaseAnimation(null), 1000);
   };
 
