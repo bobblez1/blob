@@ -43,6 +43,7 @@ function GameCanvas({ onGameEnd }: GameCanvasProps) {
     id: 'player',
     x: GAME_CONSTANTS.CANVAS_WIDTH / 2,
     y: GAME_CONSTANTS.CANVAS_HEIGHT / 2,
+    size: GAME_CONSTANTS.PLAYER_INITIAL_SIZE,
     color: '#3B82F6',
     isPlayer: true as const,
     name: 'You',
